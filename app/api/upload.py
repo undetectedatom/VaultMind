@@ -1,18 +1,43 @@
-from typing import Annotated
 import os
 import aiofiles
-from fastapi import APIRouter, UploadFile
+from aiofiles.tempfile import NamedTemporaryFile
+from fastapi import Depends, APIRouter, BackgroundTasks, UploadFile
+from pydantic_settings import BaseSettings
+from convert import file_embedding
 
 router = APIRouter()
-DATA_PATH = "~/data/static/app/"
+
+
+class SysDataPath(BaseSettings):
+    temp_file: str = "/home/dev/maxwell/VaultMind/data/temp"
+    vector_database: str = "/home/dev/maxwell/VaultMind/data/vector_database"
+
+
+# This is cpu bounded, so I use a blocking function here. This allows a separate worker thread for BackgroundTasks.
+def process_data(files, vector_database):
+    try:
+        file_embedding(files, vector_database)
+    finally:
+        for file in files:
+            os.remove(file)
 
 
 @router.post("/upload")
-async def file_upload(files: list[UploadFile]):
+async def file_upload(
+    files: list[UploadFile],
+    background_task: BackgroundTasks,
+    sys_path: SysDataPath = Depends(SysDataPath),
+):
+
+    temp_files = []
     for file in files:
-        async with aiofiles.open(
-            os.path.join(DATA_PATH, file.filename), "wb"
+        async with NamedTemporaryFile(
+            "wb", dir=sys_path.temp_file, delete=False
         ) as buffer:
             while chunk := await file.read(1024 * 1024):
                 await buffer.write(chunk)
-    return
+            await buffer.flush()
+            temp_files.append(buffer.name)
+        background_task.add_task(process_data, temp_files, sys_path.vector_database)
+
+    return {"message": "Upload started"}
