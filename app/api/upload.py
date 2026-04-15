@@ -1,9 +1,8 @@
 import os
 from aiofiles.tempfile import NamedTemporaryFile
 from fastapi import Depends, APIRouter, BackgroundTasks, UploadFile
-from pydantic_settings import BaseSettings
 from app.api.convert import file_embedding
-from app.dependencies import SysDataPath, get_sys_data_path
+from app.dependencies import SysSettings, get_sys_settings
 
 router = APIRouter()
 
@@ -17,11 +16,12 @@ def process_data(files, vector_database):
             os.remove(file)
 
 
+# I need a well rounded api routing design.
 @router.post("/upload")
 async def file_upload(
     files: list[UploadFile],
     background_task: BackgroundTasks,
-    sys_path: SysDataPath = Depends(get_sys_data_path),
+    sys_path: SysSettings = Depends(get_sys_settings),
 ):
 
     temp_files = []

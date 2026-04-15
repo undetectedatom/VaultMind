@@ -6,15 +6,16 @@ from fastapi import Depends
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class SysDataPath(BaseSettings):
+class SysSettings(BaseSettings):
     temp_file: str
     vector_database: str
+    dummy_pwd: str = "dummy_pwd"
     model_config = SettingsConfigDict(env_file=os.path.join(os.getcwd(), ".env"))
 
 
 @lru_cache
-def get_sys_data_path():
-    return SysDataPath()
+def get_sys_settings():
+    return SysSettings()
 
 
-SysDataPathDep = Annotated[SysDataPath, Depends(SysDataPath)]
+SysDataPathDep = Annotated[SysSettings, Depends(SysSettings)]
