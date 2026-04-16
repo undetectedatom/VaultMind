@@ -1,5 +1,5 @@
-from datetime import datetime, timedelta, timezone
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 import jwt
@@ -8,8 +8,8 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pwdlib import PasswordHash
 from sqlmodel import Session, select
 
-from app.database import Token, User, UserCreate, UserPublic, get_session
-from app.dependencies import get_sys_settings
+from app.database import User, UserCreate, UserPublic, get_session
+from app.settings import Token, get_sys_settings
 
 router = APIRouter()
 
