@@ -1,14 +1,15 @@
+from datetime import datetime, timedelta, timezone
+import logging
 from typing import Annotated
 
+import jwt
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from pwdlib import PasswordHash
 from sqlmodel import Session, select
 
-from app.api.database import User, UserCreate, UserPublic, get_session
-from fastapi import APIRouter, Depends, HTTPException, status
+from app.database import Token, User, UserCreate, UserPublic, get_session
 from app.dependencies import get_sys_settings
-from pwdlib import PasswordHash
-from fastapi.security import OAuth2AuthorizationCodeBearer, OAuth2PasswordRequestForm
-import jwt
-
 
 router = APIRouter()
 
@@ -30,10 +31,10 @@ def register_user(user: UserCreate, session: Annotated[Session, Depends(get_sess
             detail="A user with this username or email already exists.",
         )
     user.password = password_hash.hash(user.password)
-    user = User(**user)
-    session.add(user)
+    db_user = User.model_validate(user)
+    session.add(db_user)
     session.commit()
-    return user
+    return db_user
 
 
 def authenticate_user(
@@ -45,14 +46,28 @@ def authenticate_user(
         (User.username == username_or_email) | (User.email == username_or_email)
     )
     user = session.exec(statement).first()
-    if user and password_hash.verify(password, user.password):
-        return user
-    password_hash.hash(get_sys_settings().dummy_pwd)
+    if user:
+        if password_hash.verify(password, user.password):
+            return user
+    else:
+        password_hash.verify(password, get_sys_settings().dummy_pwd)
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Incorrect username, email, or password.",
         headers={"WWW-Authenticate": "bearer"},
     )
+
+
+def create_token(data_dict: dict, expires_delta: timedelta = timedelta(minutes=30)):
+    data_dict = data_dict.copy()
+    expires = datetime.now(timezone.utc) + expires_delta
+    data_dict.update({"exp": expires})
+    encoded_jwt = jwt.encode(
+        data_dict,
+        get_sys_settings().token_secret_key,
+        algorithm=get_sys_settings().token_encryption_algorithm,
+    )
+    return encoded_jwt
 
 
 @router.post("/token")
@@ -61,3 +76,39 @@ def users_login(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
 ):
     user = authenticate_user(session, form_data.username, form_data.password)
+    access_token = create_token({"sub": user.username})
+    return Token(access_token=access_token, token_type="bearer")
+
+
+# Extract token from HTTP header
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
+
+
+async def get_cur_user(
+    token: Annotated[str, Depends(oauth2_scheme)],
+    session: Annotated[Session, Depends(get_session)],
+):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(
+            token,
+            get_sys_settings().token_secret_key,
+            algorithms=get_sys_settings().token_encryption_algorithm,
+        )
+        username = payload["sub"]
+        statement = select(User).where(User.username == username)
+        user = session.exec(statement).first()
+        return user
+
+    except Exception as e:
+        logging.error(e)
+        raise credentials_exception
+
+
+@router.get("/test", response_model=UserPublic)
+def get_info_test(user: Annotated[User, Depends(get_cur_user)]):
+    return user

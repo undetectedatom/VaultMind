@@ -1,5 +1,6 @@
 from typing import Annotated
 
+from pydantic import BaseModel
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
 sqlite_file_name = "database.db"
@@ -34,8 +35,8 @@ class UserCreate(UserBase):
     password: str
 
 
-class Token:
-    token: str
+class Token(BaseModel):
+    access_token: str
     token_type: str
 
 
