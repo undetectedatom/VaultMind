@@ -1,8 +1,8 @@
 import os
 from aiofiles.tempfile import NamedTemporaryFile
 from fastapi import Depends, APIRouter, BackgroundTasks, UploadFile
-from app.api.convert import file_embedding
-from app.dependencies import SysSettings, get_sys_settings
+from app.api.routers.convert import file_embedding
+from app.settings import SysSettings, get_sys_settings
 
 router = APIRouter()
 

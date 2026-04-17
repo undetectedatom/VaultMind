@@ -2,20 +2,7 @@ import enum
 from datetime import datetime, timezone
 from typing import Annotated
 
-from sqlmodel import Field, Relationship, Session, SQLModel, create_engine
-
-sqlite_file_name = "database.db"
-connect_args = {"check_same_thread": False}
-engine = create_engine(f"sqlite:///{sqlite_file_name}", connect_args=connect_args)
-
-
-def create_db_and_tables():
-    SQLModel.metadata.create_all(engine)
-
-
-def get_session():
-    with Session(engine) as session:
-        yield session
+from sqlmodel import Field, Relationship, SQLModel
 
 
 class UserBase(SQLModel):
@@ -53,7 +40,3 @@ class Document(SQLModel, table=True):
         datetime, Field(default_factory=lambda: datetime.now(timezone.utc))
     ]
     upload_status: DocumentStatus = DocumentStatus.PROCESSING
-
-
-if __name__ == "__main__":
-    create_db_and_tables()

@@ -1,8 +1,5 @@
 from functools import lru_cache
 import os
-from typing import Annotated
-from fastapi import Depends
-from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,11 +15,3 @@ class SysSettings(BaseSettings):
 @lru_cache
 def get_sys_settings():
     return SysSettings()
-
-
-SysDataPathDep = Annotated[SysSettings, Depends(SysSettings)]
-
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
