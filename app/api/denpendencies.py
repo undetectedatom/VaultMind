@@ -1,5 +1,6 @@
 import logging
 from typing import Annotated
+import uuid
 
 import jwt
 from fastapi import Depends, HTTPException, status
@@ -35,7 +36,7 @@ async def get_cur_user(
             get_sys_settings().token_secret_key,
             algorithms=get_sys_settings().token_encryption_algorithm,
         )
-        user_id = payload["sub"]
+        user_id = uuid.UUID(payload["sub"])
         statement = select(User).where(User.id == user_id)
         user = session.exec(statement).first()
         return user

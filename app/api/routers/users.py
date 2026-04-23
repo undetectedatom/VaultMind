@@ -5,7 +5,7 @@ from pwdlib import PasswordHash
 from sqlmodel import Session, select
 
 from app.api.denpendencies import get_cur_user, get_session
-from app.database.models import User, UserCreate, UserPublic
+from app.database.models import Document, User, UserCreate, UserPublic
 
 router = APIRouter()
 
@@ -33,6 +33,16 @@ def register_user(user: UserCreate, session: Annotated[Session, Depends(get_sess
     return db_user
 
 
-@router.get("/test", response_model=UserPublic)
-def get_info_test(user: Annotated[User, Depends(get_cur_user)]):
-    return user
+@router.get("/test")
+def get_info_test(
+    user: Annotated[User, Depends(get_cur_user)],
+    session: Annotated[Session, Depends(get_session)],
+):
+
+    doc = Document(filename="test_file", file_path="", user_id=user.id)
+    session.add(doc)
+    session.commit()
+    doc.filename = "another_file"
+    session.add(doc)
+    session.commit()
+    return doc

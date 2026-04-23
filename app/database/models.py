@@ -33,12 +33,10 @@ class DocumentStatus(str, enum.Enum):
 
 
 class Document(SQLModel, table=True):
-    id: Annotated[uuid.UUID, Field(default_factory=uuid.uuid4, primary_key=True)]
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     filename: Annotated[str, Field(index=True)]
     file_path: str
     user_id: Annotated[uuid.UUID, Field(foreign_key="user.id")]
     user: User = Relationship(back_populates="documents")
-    uploaded_at: Annotated[
-        datetime, Field(default_factory=lambda: datetime.now(timezone.utc))
-    ]
-    upload_status: DocumentStatus = DocumentStatus.PROCESSING
+    uploaded_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    upload_status: DocumentStatus = DocumentStatus.PENDING
