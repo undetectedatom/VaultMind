@@ -57,5 +57,5 @@ def users_login(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
 ):
     user = authenticate_user(session, form_data.username, form_data.password)
-    access_token = create_token({"sub": user.username})
+    access_token = create_token({"sub": user.id})
     return Token(access_token=access_token, token_type="bearer")

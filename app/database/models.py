@@ -1,6 +1,7 @@
 import enum
 from datetime import datetime, timezone
 from typing import Annotated
+import uuid
 
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -11,13 +12,13 @@ class UserBase(SQLModel):
 
 
 class User(UserBase, table=True):
-    id: Annotated[int | None, Field(primary_key=True)] = None
+    id: Annotated[uuid.UUID, Field(default_factory=uuid.uuid4, primary_key=True)]
     documents: list["Document"] = Relationship(back_populates="user")
     password: str
 
 
 class UserPublic(UserBase):
-    id: int
+    id: uuid.UUID
 
 
 class UserCreate(UserBase):
@@ -25,17 +26,18 @@ class UserCreate(UserBase):
 
 
 class DocumentStatus(str, enum.Enum):
+    PENDING = "pending"
     PROCESSING = "processing"
-    STORED = "stored"
+    COMPLETED = "completed"
     FAILED = "failed"
 
 
 class Document(SQLModel, table=True):
-    id: Annotated[int | None, Field(primary_key=True)] = None
+    id: Annotated[uuid.UUID, Field(default_factory=uuid.uuid4, primary_key=True)]
     filename: Annotated[str, Field(index=True)]
-    user_id: Annotated[int, Field(foreign_key="user.id")]
+    file_path: str
+    user_id: Annotated[uuid.UUID, Field(foreign_key="user.id")]
     user: User = Relationship(back_populates="documents")
-    vector_namespace: str
     uploaded_at: Annotated[
         datetime, Field(default_factory=lambda: datetime.now(timezone.utc))
     ]

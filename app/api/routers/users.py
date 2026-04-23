@@ -7,7 +7,7 @@ from sqlmodel import Session, select
 from app.api.denpendencies import get_cur_user, get_session
 from app.database.models import User, UserCreate, UserPublic
 
-router = APIRouter(prefix="/users")
+router = APIRouter()
 
 
 password_hash = PasswordHash.recommended()

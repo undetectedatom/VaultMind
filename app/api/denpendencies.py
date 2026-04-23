@@ -35,8 +35,8 @@ async def get_cur_user(
             get_sys_settings().token_secret_key,
             algorithms=get_sys_settings().token_encryption_algorithm,
         )
-        username = payload["sub"]
-        statement = select(User).where(User.username == username)
+        user_id = payload["sub"]
+        statement = select(User).where(User.id == user_id)
         user = session.exec(statement).first()
         return user
 
