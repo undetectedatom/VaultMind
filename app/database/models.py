@@ -32,11 +32,19 @@ class DocumentStatus(str, enum.Enum):
     FAILED = "failed"
 
 
-class Document(SQLModel, table=True):
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+class DocumentBase(SQLModel):
     filename: Annotated[str, Field(index=True)]
+    uploaded_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    upload_status: DocumentStatus = DocumentStatus.PENDING
+
+
+class Document(DocumentBase, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     file_path: str
     user_id: Annotated[uuid.UUID, Field(foreign_key="user.id")]
     user: User = Relationship(back_populates="documents")
-    uploaded_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    upload_status: DocumentStatus = DocumentStatus.PENDING
+
+
+class DocumentPublic(DocumentBase):
+    id: uuid.UUID
+    usesr_id: uuid.UUID

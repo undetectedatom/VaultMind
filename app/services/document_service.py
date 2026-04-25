@@ -14,6 +14,7 @@ from langchain_community.document_loaders import (
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+from app.database.models import Document
 from app.settings import get_sys_settings
 
 
@@ -28,6 +29,16 @@ async def save_file_to_disk(file: UploadFile, document_id: uuid.UUID | str):
         return file_path
     except Exception as e:
         logging.error(e)
+        raise e
+
+
+async def delte_file_from_disk(document: Document):
+    try:
+        if os.path.exists(document.file_path):
+            os.remove(document.file_path)
+    except Exception as e:
+        logging.error(e)
+        raise e
 
 
 async def process_and_embed_document(file_path, document_id, user_id):
