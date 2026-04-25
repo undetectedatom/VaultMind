@@ -32,7 +32,7 @@ async def save_file_to_disk(file: UploadFile, document_id: uuid.UUID | str):
         raise e
 
 
-async def delte_file_from_disk(document: Document):
+async def delete_file_from_disk(document: Document):
     try:
         if os.path.exists(document.file_path):
             os.remove(document.file_path)

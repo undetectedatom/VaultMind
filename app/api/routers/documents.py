@@ -13,7 +13,7 @@ from sqlmodel import Session, select
 from app.api.denpendencies import get_cur_user, get_session
 from app.database.models import Document, DocumentPublic, DocumentStatus, User
 from app.services.document_service import (
-    delte_file_from_disk,
+    delete_file_from_disk,
     save_file_to_disk,
     process_and_embed_document,
 )
@@ -37,7 +37,7 @@ async def file_upload(
     processing_docs = []
     prohibited_files = []
     for file in files:
-        if not verify_file():
+        if not verify_file(file):
             prohibited_files.append(file.filename)
             continue
         doc = Document(filename=file.filename, file_path="", user_id=user.id)
@@ -49,7 +49,9 @@ async def file_upload(
         except Exception:
             prohibited_files.append(file.filename)
             doc.upload_status = DocumentStatus.FAILED
-        session.add(doc)
+            session.delete(doc)
+            session.commit()
+            continue
         session.commit()
         processing_docs.append(doc.id)
         background_task.add_task(
@@ -105,7 +107,7 @@ async def delete_document(
             status_code=status.HTTP_404_NOT_FOUND, detail="Document can not be found."
         )
     delete_vectors(user.id, doc.id)
-    delte_file_from_disk(document=doc)
+    delete_file_from_disk(document=doc)
     session.delete(doc)
     session.commit()
     return {"message": "Document has been deleted.", "status": status.HTTP_200_OK}
