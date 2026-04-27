@@ -11,11 +11,13 @@ from langchain_community.document_loaders import (
     UnstructuredMarkdownLoader,
     UnstructuredWordDocumentLoader,
 )
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_chroma import Chroma
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app.database.models import Document
 from app.settings import get_sys_settings
+
+from models import get_embeddings
 
 
 async def save_file_to_disk(file: UploadFile, document_id: uuid.UUID | str):
@@ -55,7 +57,13 @@ async def process_and_embed_document(file_path, document_id, user_id):
         case ".png" | ".jpg":
             loader = UnstructuredImageLoader(file_path)
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-    embeddings_model = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
+    embeddings_model = get_embeddings()
     chunks = text_splitter.split_documents(loader.lazy_load())
     for chunk in chunks:
         chunk.metadata["document_id"] = str(document_id)
+    Chroma.from_documents(
+        documents=chunks,
+        embedding=embeddings_model,
+        collection_name=str(user_id),
+        persist_directory=get_sys_settings().vector_database,
+    )

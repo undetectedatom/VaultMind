@@ -10,6 +10,10 @@ class SysSettings(BaseSettings):
     dummy_pwd: str = "dummy_pwd"
     token_secret_key: str
     token_encryption_algorithm: str
+    provider: str
+    service_url: str
+    service_model: str
+    api_key: str
     model_config = SettingsConfigDict(env_file=os.path.join(os.getcwd(), ".env"))
 
 
