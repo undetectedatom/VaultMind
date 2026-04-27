@@ -32,7 +32,7 @@ async def save_file_to_disk(file: UploadFile, document_id: uuid.UUID | str):
         raise e
 
 
-async def delete_file_from_disk(document: Document):
+def delete_file_from_disk(document: Document):
     try:
         if os.path.exists(document.file_path):
             os.remove(document.file_path)
@@ -56,4 +56,6 @@ async def process_and_embed_document(file_path, document_id, user_id):
             loader = UnstructuredImageLoader(file_path)
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     embeddings_model = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
-    text_splitter.split_documents(loader.lazy_load())
+    chunks = text_splitter.split_documents(loader.lazy_load())
+    for chunk in chunks:
+        chunk.metadata["document_id"] = str(document_id)

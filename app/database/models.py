@@ -47,4 +47,4 @@ class Document(DocumentBase, table=True):
 
 class DocumentPublic(DocumentBase):
     id: uuid.UUID
-    usesr_id: uuid.UUID
+    user_id: uuid.UUID

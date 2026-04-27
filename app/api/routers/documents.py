@@ -1,3 +1,5 @@
+import logging
+import traceback
 from typing import Annotated
 import uuid
 
@@ -23,8 +25,9 @@ router = APIRouter()
 
 
 def verify_file(file: UploadFile):
-    if len(file) == 0:
+    if file.size == 0:
         return False
+    return True
 
 
 @router.post("/upload")
@@ -34,7 +37,7 @@ async def file_upload(
     session: Annotated[Session, Depends(get_session)],
     user: Annotated[User, Depends(get_cur_user)],
 ):
-    processing_docs = []
+    processing_docs = {}
     prohibited_files = []
     for file in files:
         if not verify_file(file):
@@ -46,37 +49,38 @@ async def file_upload(
         try:
             doc.file_path = await save_file_to_disk(file, doc.id)
             doc.upload_status = DocumentStatus.PROCESSING
-        except Exception:
+        except Exception as e:
             prohibited_files.append(file.filename)
             doc.upload_status = DocumentStatus.FAILED
             session.delete(doc)
             session.commit()
+            print(traceback.format_exc(e))
             continue
         session.commit()
-        processing_docs.append(doc.id)
+        processing_docs[doc.filename] = doc.id
         background_task.add_task(
             process_and_embed_document, doc.file_path, doc.id, user.id
         )
     if not prohibited_files:
         return {
             "message": "Files upload successfully.",
-            "processing_documents": processing_docs,
+            "processing_docs": processing_docs,
         }
     return {
         "message": "One or several files upload failed.",
-        "processing_documents": processing_docs,
+        "processing_docs": processing_docs,
         "failed_files": prohibited_files,
     }
 
 
-@router.get("", response_model=list[DocumentPublic])
+@router.get("")
 async def get_document_list(
     session: Annotated[Session, Depends(get_session)],
     user: Annotated[User, Depends(get_cur_user)],
 ):
     statement = select(Document).where(Document.user_id == user.id)
     docs = session.exec(statement).all()
-    return docs
+    return [DocumentPublic.model_validate(doc) for doc in docs]
 
 
 @router.get("/{doc_id}")

@@ -9,7 +9,7 @@ from app.api.routers import api_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_db_and_tables()
-    logging.info("Data table created")
+    # logging.info("Data table created")
     yield
 
 
