@@ -27,5 +27,5 @@ def delete_file_from_disk(document: Document):
     try:
         if os.path.exists(document.file_path):
             os.remove(document.file_path)
-    except Exception:
-        pass
+    except Exception as e:
+        logging.error(e)

@@ -122,10 +122,7 @@ async def delete_document(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Document can not be found."
         )
-    try:
-        delete_vectors(user.id, doc.id)
-    except Exception:
-        pass
+    delete_vectors(user.id, doc.id)
     delete_file_from_disk(document=doc)
     session.delete(doc)
     session.commit()
