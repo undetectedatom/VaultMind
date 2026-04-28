@@ -11,9 +11,7 @@ from app.settings import sys_settings
 
 async def save_file_to_disk(file: UploadFile, document_id: uuid.UUID | str):
     try:
-        file_path = os.path.join(
-            sys_settings.user_documents, f"{document_id}_{file.filename}"
-        )
+        file_path = os.path.join(sys_settings.user_documents, document_id)
         async with aiofiles.open(file_path, "wb") as out_file:
             while chunk := await file.read(1024 * 1024):
                 await out_file.write(chunk)

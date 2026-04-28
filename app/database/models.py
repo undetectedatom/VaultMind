@@ -14,6 +14,7 @@ class UserBase(SQLModel):
 class User(UserBase, table=True):
     id: Annotated[uuid.UUID, Field(default_factory=uuid.uuid4, primary_key=True)]
     documents: list["Document"] = Relationship(back_populates="user")
+    chat_sessions: list["ChatSession"] = Relationship(back_populates="user")
     password: str
 
 
@@ -49,3 +50,31 @@ class Document(DocumentBase, table=True):
 class DocumentPublic(DocumentBase):
     id: uuid.UUID
     user_id: uuid.UUID
+
+
+class ChatSession(SQLModel, table=True):
+    id: uuid.UUID
+    user_id: Annotated[uuid.UUID, Field(foreign_key="user.id")]
+    user: User = Relationship(back_populates="chat_sessions")
+    chat_messages: list["ChatMessage"] = Relationship(back_populates="chat_session")
+    title: str
+
+
+class ChatMessage(SQLModel, table=True):
+    id: uuid.UUID
+    session_id: Annotated[uuid.UUID, Field(foreign_key="chat_session.id")]
+    session: ChatSession = Relationship(back_populates="chat_messages")
+    role: str
+    content: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class ChatRequest(SQLModel):
+    query: str
+    session_id: uuid.UUID | None = None
+
+
+class ChatResponse(SQLModel):
+    answer: str
+    sources: list[str]
+    session_id: uuid.UUID
