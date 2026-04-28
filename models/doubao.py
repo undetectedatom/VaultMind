@@ -1,4 +1,3 @@
-import os
 import requests
 from typing import List
 from langchain_core.embeddings import Embeddings
@@ -7,12 +6,13 @@ from langchain_core.embeddings import Embeddings
 class DoubaoMultimodalEmbeddings(Embeddings):
     """Custom LangChain embedding class for Doubao Multimodal Vision Endpoint."""
 
-    def __init__(self, api_key: str, endpoint_id: str, dimensions: int = 2048):
+    def __init__(
+        self, api_key: str, api_url: str, endpoint_id: str, dimensions: int = 2048
+    ):
         self.api_key = api_key
+        self.api_url = api_url
         self.endpoint_id = endpoint_id
         self.dimensions = dimensions
-        # Notice the custom multimodal endpoint from the docs
-        self.api_url = "https://ark.cn-beijing.volces.com/api/v3/embeddings/multimodal"
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         embeddings = []
@@ -34,7 +34,7 @@ class DoubaoMultimodalEmbeddings(Embeddings):
 
             data = response.json()
 
-            # THE FIX: Handle both Dictionary and List response formats
+            # Handle both Dictionary and List response formats
             if isinstance(data["data"], list):
                 # Standard OpenAI format
                 vector = data["data"][0]["embedding"]
@@ -47,5 +47,4 @@ class DoubaoMultimodalEmbeddings(Embeddings):
         return embeddings
 
     def embed_query(self, text: str) -> List[float]:
-        # LangChain uses this method when searching the user's query
         return self.embed_documents([text])[0]

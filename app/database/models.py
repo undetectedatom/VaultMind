@@ -43,6 +43,7 @@ class Document(DocumentBase, table=True):
     file_path: str
     user_id: Annotated[uuid.UUID, Field(foreign_key="user.id")]
     user: User = Relationship(back_populates="documents")
+    comment: str = ""
 
 
 class DocumentPublic(DocumentBase):

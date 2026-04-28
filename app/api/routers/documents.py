@@ -1,33 +1,47 @@
 import logging
-import traceback
-from typing import Annotated
+import os
 import uuid
+from typing import Annotated
 
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Depends,
     HTTPException,
     UploadFile,
-    BackgroundTasks,
     status,
 )
 from sqlmodel import Session, select
+
 from app.api.denpendencies import get_cur_user, get_session
 from app.database.models import Document, DocumentPublic, DocumentStatus, User
 from app.services.document_service import (
     delete_file_from_disk,
     save_file_to_disk,
-    process_and_embed_document,
 )
-from app.services.vector_database import delete_vectors
+from app.services.vector_database import delete_vectors, vectors_embedding
+from app.settings import supported_files
 
 router = APIRouter()
 
 
 def verify_file(file: UploadFile):
-    if file.size == 0:
+    if file.size == 0 or os.path.splitext(file)[-1].lower() not in supported_files:
         return False
     return True
+
+
+def embed_document(session: Session, doc: Document):
+    try:
+        vectors_embedding(doc.file_path, doc.id, doc.user_id)
+    except Exception as e:
+        logging.error(e)
+        doc.upload_status = DocumentStatus.FAILED
+        doc.comment = "File Convertion Failure"
+        session.commit()
+        return
+    doc.upload_status = DocumentStatus.COMPLETED
+    session.commit()
 
 
 @router.post("/upload")
@@ -54,13 +68,11 @@ async def file_upload(
             doc.upload_status = DocumentStatus.FAILED
             session.delete(doc)
             session.commit()
-            print(traceback.format_exc(e))
+            logging.error(e)
             continue
         session.commit()
         processing_docs[doc.filename] = doc.id
-        background_task.add_task(
-            process_and_embed_document, doc.file_path, doc.id, user.id
-        )
+        background_task.add_task(embed_document, doc)
     if not prohibited_files:
         return {
             "message": "Files upload successfully.",
@@ -110,7 +122,10 @@ async def delete_document(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Document can not be found."
         )
-    delete_vectors(user.id, doc.id)
+    try:
+        delete_vectors(user.id, doc.id)
+    except Exception:
+        pass
     delete_file_from_disk(document=doc)
     session.delete(doc)
     session.commit()
