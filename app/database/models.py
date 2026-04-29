@@ -76,4 +76,10 @@ class ChatRequest(SQLModel):
 class ChatResponse(SQLModel):
     answer: str
     sources: list[str]
+
+
+class NewChatResponse(SQLModel):
+    answer: str
+    sources: list[str]
     session_id: uuid.UUID
+    title: str
