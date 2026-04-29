@@ -71,7 +71,6 @@ class ChatMessage(SQLModel, table=True):
 
 class ChatRequest(SQLModel):
     query: str
-    session_id: uuid.UUID | None = None
 
 
 class ChatResponse(SQLModel):
