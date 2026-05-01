@@ -10,7 +10,7 @@ from sqlmodel import Session, select
 from app.api.denpendencies import get_session
 from app.database.models import User
 from app.schemas.token import Token
-from app.settings import get_sys_settings
+from app.settings import settings
 
 router = APIRouter()
 
@@ -31,7 +31,10 @@ def authenticate_user(
         if password_hash.verify(password, user.password):
             return user
     else:
-        password_hash.verify(password, get_sys_settings().dummy_pwd)
+        try:
+            password_hash.verify(password, settings.dummy_pwd)
+        except Exception:
+            pass
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Incorrect username, email, or password.",
@@ -44,9 +47,9 @@ def create_token(data_dict: dict, expires_delta: timedelta = timedelta(minutes=3
     expires = datetime.now(timezone.utc) + expires_delta
     data_dict.update({"exp": expires})
     encoded_jwt = jwt.encode(
-        data_dict,
-        get_sys_settings().token_secret_key,
-        algorithm=get_sys_settings().token_encryption_algorithm,
+        payload=data_dict,
+        key=settings.token_secret_key,
+        algorithm=settings.token_encryption_algorithm,
     )
     return encoded_jwt
 

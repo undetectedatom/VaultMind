@@ -53,17 +53,18 @@ class DocumentPublic(DocumentBase):
 
 
 class ChatSession(SQLModel, table=True):
-    id: uuid.UUID
+    # table name is defualt to chatsession
+    id: Annotated[uuid.UUID, Field(primary_key=True)]
     user_id: Annotated[uuid.UUID, Field(foreign_key="user.id")]
     user: User = Relationship(back_populates="chat_sessions")
-    chat_messages: list["ChatMessage"] = Relationship(back_populates="chat_session")
+    messages: list["ChatMessage"] = Relationship(back_populates="session")
     title: str
 
 
 class ChatMessage(SQLModel, table=True):
-    id: uuid.UUID
-    session_id: Annotated[uuid.UUID, Field(foreign_key="chat_session.id")]
-    session: ChatSession = Relationship(back_populates="chat_messages")
+    id: Annotated[uuid.UUID, Field(primary_key=True)]
+    session_id: Annotated[uuid.UUID, Field(foreign_key="chatsession.id")]
+    session: ChatSession = Relationship(back_populates="messages")
     role: str
     content: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

@@ -49,8 +49,8 @@ async def get_history(
 @router.post("")
 async def create_new_session(
     chat_request: ChatRequest,
-    user: Annotated[User, Depends(get_cur_user())],
-    db_session: Annotated[Session, get_session()],
+    user: Annotated[User, Depends(get_cur_user)],
+    db_session: Annotated[Session, Depends(get_session)],
 ):
     chat_session = ChatSession(user=user, title="")
     chat_session.title = await generate_title(chat_request.query)
@@ -68,12 +68,12 @@ async def create_new_session(
     )
 
 
-@router.post("/{session_id}")
+@router.post("/{chat_session_id}")
 async def chat_in_session(
     chat_request: ChatRequest,
     chat_session_id: str,
-    user: Annotated[User, Depends(get_cur_user())],
-    db_session: Annotated[Session, Depends(get_session())],
+    user: Annotated[User, Depends(get_cur_user)],
+    db_session: Annotated[Session, Depends(get_session)],
 ):
 
     check_session(db_session, chat_session_id, user.id)
@@ -88,8 +88,8 @@ async def chat_in_session(
 
 @router.get("")
 async def get_chat_sessions(
-    user: Annotated[User, Depends(get_cur_user())],
-    db_session: Annotated[Session, Depends(get_session())],
+    user: Annotated[User, Depends(get_cur_user)],
+    db_session: Annotated[Session, Depends(get_session)],
 ):
     pass
 
@@ -97,7 +97,7 @@ async def get_chat_sessions(
 @router.get("/{session_id}")
 async def get_chat_history(
     session_id: str,
-    user: Annotated[User, Depends(get_cur_user())],
-    db_session: Annotated[Session, Depends(get_session())],
+    user: Annotated[User, Depends(get_cur_user)],
+    db_session: Annotated[Session, Depends(get_session)],
 ):
     pass

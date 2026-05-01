@@ -6,12 +6,15 @@ import aiofiles
 from fastapi import UploadFile
 
 from app.database.models import Document
-from app.settings import sys_settings
+from app.settings import settings
 
 
 async def save_file_to_disk(file: UploadFile, document_id: uuid.UUID | str):
     try:
-        file_path = os.path.join(sys_settings.user_documents, document_id)
+        # TODO Fix no document types issues
+        file_path = os.path.join(
+            settings.user_documents, str(document_id).join(os.path.splitext(file)[-1])
+        )
         async with aiofiles.open(file_path, "wb") as out_file:
             while chunk := await file.read(1024 * 1024):
                 await out_file.write(chunk)

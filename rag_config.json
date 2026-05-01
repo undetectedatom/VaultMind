@@ -1,0 +1,50 @@
+{
+  "providers": {
+    "openai": {
+      "base_url": "https://api.openai.com/v1",
+      "models": {
+        "gpt-4o-mini": {
+          "context_window": 128000
+        },
+        "text-embedding-3-small": {
+          "dimension": 1536
+        }
+      }
+    },
+    "ollama": {
+      "base_url": "http://localhost:11434",
+      "models": {
+        "llama3:8b": {
+          "context_window": 8192
+        },
+        "mistral": {
+          "context_window": 8192
+        }
+      }
+    },
+    "doubao-embedding": {
+      "base_url": "https://ark.cn-beijing.volces.com/api/v3/embeddings/multimodal",
+      "models": {
+        "ep-20260427161847-6rgwf": {
+          "dimension": 2048
+        }
+      }
+    }
+  },
+  "activities": {
+    "embedding": {
+      "provider": "doubao-embedding",
+      "model": "ep-20260427161847-6rgwf"
+    },
+    "router": {
+      "provider": "openai",
+      "model": "gpt-4o-mini"
+    },
+    "generation": [
+      {
+        "provider": "ollama",
+        "model": "llama3:8b"
+      }
+    ]
+  }
+}

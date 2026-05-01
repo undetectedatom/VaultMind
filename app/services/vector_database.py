@@ -14,8 +14,8 @@ from langchain_text_splitters import (
     RecursiveCharacterTextSplitter,
 )
 
-from app.settings import sys_settings
-from models import get_embeddings
+from app.settings import settings
+from external_models import get_embeddings
 
 
 def vectors_embedding(file_path: str, document_id: str, user_id: str):
@@ -66,13 +66,15 @@ def vectors_embedding(file_path: str, document_id: str, user_id: str):
         chunk.metadata["document_id"] = str(document_id)
 
     # 3. Embed and Store
-    embeddings_model = get_embeddings(**sys_settings.model_dump())
+    embedding_service = settings.services.embedding_model
+
+    embeddings_model = get_embeddings(**embedding_service)
 
     Chroma.from_documents(
         documents=chunks,
         embedding=embeddings_model,
         collection_name=str(user_id),
-        persist_directory=sys_settings.vector_database,
+        persist_directory=settings.vector_database,
     )
 
 
@@ -81,13 +83,13 @@ def delete_vectors(user_id: str, document_id: str):
     Deletes vectors from a user's Chroma collection based on the document_id metadata.
     """
     # 1. Initialize the same embedding model used for insertion
-    embeddings_model = get_embeddings(**sys_settings.model_dump())
+    embeddings_model = get_embeddings(**settings.services.embedding_model)
 
     # 2. Connect to the existing Chroma collection for this user
     vectorstore = Chroma(
         collection_name=str(user_id),
         embedding_function=embeddings_model,
-        persist_directory=sys_settings.vector_database,
+        persist_directory=settings.vector_database,
     )
 
     # 3. Delete documents using a metadata filter ('where' clause)

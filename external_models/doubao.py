@@ -7,10 +7,10 @@ class DoubaoMultimodalEmbeddings(Embeddings):
     """Custom LangChain embedding class for Doubao Multimodal Vision Endpoint."""
 
     def __init__(
-        self, api_key: str, api_url: str, endpoint_id: str, dimensions: int = 2048
+        self, api_key: str, base_url: str, endpoint_id: str, dimensions: int = 2048
     ):
         self.api_key = api_key
-        self.api_url = api_url
+        self.base_url = base_url
         self.endpoint_id = endpoint_id
         self.dimensions = dimensions
 
@@ -29,7 +29,7 @@ class DoubaoMultimodalEmbeddings(Embeddings):
                 "encoding_format": "float",
             }
 
-            response = requests.post(self.api_url, headers=headers, json=payload)
+            response = requests.post(self.base_url, headers=headers, json=payload)
             response.raise_for_status()
 
             data = response.json()

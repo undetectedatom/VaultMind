@@ -9,7 +9,7 @@ from sqlmodel import Session, select
 
 from app.database.engine import engine
 from app.database.models import User
-from app.settings import get_sys_settings
+from app.settings import settings
 
 
 def get_session():
@@ -32,9 +32,9 @@ async def get_cur_user(
     )
     try:
         payload = jwt.decode(
-            token,
-            get_sys_settings().token_secret_key,
-            algorithms=get_sys_settings().token_encryption_algorithm,
+            jwt=token,
+            key=settings.token_secret_key,
+            algorithms=settings.token_encryption_algorithm,
         )
         user_id = uuid.UUID(payload["sub"])
         statement = select(User).where(User.id == user_id)
