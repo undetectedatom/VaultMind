@@ -12,8 +12,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    vector_database: str
-    user_documents: str
+    vector_database_path: str
+    user_documents_path: str
     token_secret_key: str
     token_encryption_algorithm: str
     dummy_pwd: str = secrets.token_urlsafe(32)

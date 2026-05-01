@@ -74,7 +74,7 @@ def vectors_embedding(file_path: str, document_id: str, user_id: str):
         documents=chunks,
         embedding=embeddings_model,
         collection_name=str(user_id),
-        persist_directory=settings.vector_database,
+        persist_directory=settings.vector_database_path,
     )
 
 
@@ -89,7 +89,7 @@ def delete_vectors(user_id: str, document_id: str):
     vectorstore = Chroma(
         collection_name=str(user_id),
         embedding_function=embeddings_model,
-        persist_directory=settings.vector_database,
+        persist_directory=settings.vector_database_path,
     )
 
     # 3. Delete documents using a metadata filter ('where' clause)

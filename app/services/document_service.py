@@ -13,7 +13,8 @@ async def save_file_to_disk(file: UploadFile, document_id: uuid.UUID | str):
     try:
         # TODO Fix no document types issues
         file_path = os.path.join(
-            settings.user_documents, str(document_id).join(os.path.splitext(file)[-1])
+            settings.user_documents_path,
+            str(document_id).join(os.path.splitext(file)[-1]),
         )
         async with aiofiles.open(file_path, "wb") as out_file:
             while chunk := await file.read(1024 * 1024):

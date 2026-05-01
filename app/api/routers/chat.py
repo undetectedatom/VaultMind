@@ -20,7 +20,7 @@ def check_session(
     db_session: Session, chat_session_id: uuid.UUID | str, user_id: uuid.UUID | str
 ):
     # Authorization
-    # We must make sure both session id and user id, preventing anomalous user query
+    # We must authorize both session id and user id, preventing anomalous user query
     statement = select(ChatSession).where(
         (ChatSession.id == uuid.UUID(chat_session_id))
         & (ChatSession.user_id == uuid.UUID(user_id))
