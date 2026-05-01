@@ -3,11 +3,12 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
-from app.api.denpendencies import get_cur_user, get_session
+from app.api.dependencies import get_cur_user, get_session
 from app.database.models import (
     ChatMessage,
     ChatRequest,
     ChatSession,
+    ChatResponse,
     NewChatResponse,
     User,
 )
@@ -52,14 +53,22 @@ async def create_new_session(
     user: Annotated[User, Depends(get_cur_user)],
     db_session: Annotated[Session, Depends(get_session)],
 ):
-    chat_session = ChatSession(user=user, title="")
+    chat_session = ChatSession(user_id=user.id, title="")
     chat_session.title = await generate_title(chat_request.query)
     db_session.add(chat_session)
     user_msg = ChatMessage(
         session_id=chat_session.id, role="user", content=chat_request.query
     )
     db_session.add(user_msg)
-    answer, sources = await knowledge_query([user_msg])
+    answer, sources = await knowledge_query([user_msg], user.id)
+    assistant_msg = ChatMessage(
+        session_id=chat_session.id,
+        role="assistant",
+        content=answer,
+        sources=sources,
+    )
+    db_session.add(assistant_msg)
+    db_session.commit()
     return NewChatResponse(
         answer=answer,
         sources=sources,
@@ -78,12 +87,25 @@ async def chat_in_session(
 
     check_session(db_session, chat_session_id, user.id)
 
-    chat_message = ChatMessage(session_id=chat_session_id)
-    db_session.add(chat_message)
+    user_msg = ChatMessage(
+        session_id=chat_session_id, role="user", content=chat_request.query
+    )
+    db_session.add(user_msg)
     db_session.commit()
 
     chat_history = await get_history(db_session, chat_session_id)
-    knowledge_query(chat_history)
+    answer, sources = await knowledge_query(chat_history, user.id)
+
+    assistant_msg = ChatMessage(
+        session_id=uuid.UUID(chat_session_id),
+        role="assistant",
+        content=answer,
+        sources=sources,
+    )
+    db_session.add(assistant_msg)
+    db_session.commit()
+
+    return ChatResponse(answer=answer, sources=sources)
 
 
 @router.get("")

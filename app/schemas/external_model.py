@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 
 class ServiceModel(BaseModel):
+    provider: str
     base_url: str
     api_key: str
     model: str

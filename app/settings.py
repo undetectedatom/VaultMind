@@ -45,6 +45,7 @@ class Settings(BaseSettings):
             provider = raw_config.providers[role.provider]
             specs = provider.models[role.model]
             return ServiceModel(
+                provider=role.provider,
                 base_url=provider.base_url,
                 api_key=provider.api_key or "",
                 model=role.model,

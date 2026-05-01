@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Annotated
 import uuid
 
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import JSON, Column, Field, Relationship, SQLModel
 
 
 class UserBase(SQLModel):
@@ -67,6 +67,7 @@ class ChatMessage(SQLModel, table=True):
     session: ChatSession = Relationship(back_populates="messages")
     role: str
     content: str
+    sources: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 

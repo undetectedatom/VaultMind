@@ -15,6 +15,7 @@ from langchain_text_splitters import (
 )
 
 from app.settings import settings
+from app.database.engine import chroma_client
 from external_models import get_embeddings
 
 
@@ -71,10 +72,10 @@ def vectors_embedding(file_path: str, document_id: str, user_id: str):
     embeddings_model = get_embeddings(**embedding_service)
 
     Chroma.from_documents(
+        client=chroma_client,
         documents=chunks,
         embedding=embeddings_model,
-        collection_name=str(user_id),
-        persist_directory=settings.vector_database_path,
+        collection_name=f"user-{user_id}",
     )
 
 
@@ -87,9 +88,9 @@ def delete_vectors(user_id: str, document_id: str):
 
     # 2. Connect to the existing Chroma collection for this user
     vectorstore = Chroma(
-        collection_name=str(user_id),
+        client=chroma_client,
+        collection_name=f"user-{user_id}",
         embedding_function=embeddings_model,
-        persist_directory=settings.vector_database_path,
     )
 
     # 3. Delete documents using a metadata filter ('where' clause)

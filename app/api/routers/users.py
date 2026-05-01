@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pwdlib import PasswordHash
 from sqlmodel import Session, select
 
-from app.api.denpendencies import get_cur_user, get_session
+from app.api.dependencies import get_cur_user, get_session
 from app.database.models import Document, User, UserCreate, UserPublic
 
 router = APIRouter()

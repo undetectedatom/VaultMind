@@ -2,6 +2,7 @@ import logging
 import os
 import uuid
 from typing import Annotated
+from app.database.engine import engine
 
 from fastapi import (
     APIRouter,
@@ -13,7 +14,7 @@ from fastapi import (
 )
 from sqlmodel import Session, select
 
-from app.api.denpendencies import get_cur_user, get_session
+from app.api.dependencies import get_cur_user, get_session
 from app.database.models import Document, DocumentPublic, DocumentStatus, User
 from app.services.document_service import (
     delete_file_from_disk,
@@ -26,22 +27,29 @@ router = APIRouter()
 
 
 def verify_file(file: UploadFile):
-    if file.size == 0 or os.path.splitext(file)[-1].lower() not in supported_files:
+    if (
+        file.size == 0
+        or os.path.splitext(file.filename)[-1].lower() not in supported_files
+    ):
         return False
     return True
 
 
-def embed_document(session: Session, doc: Document):
-    try:
-        vectors_embedding(doc.file_path, doc.id, doc.user_id)
-    except Exception as e:
-        logging.error(e)
-        doc.upload_status = DocumentStatus.FAILED
-        doc.comment = "File Convertion Failure"
+def embed_document(doc_id: uuid.UUID):
+    with Session(engine) as session:
+        doc = session.get(Document, doc_id)
+        if not doc:
+            return
+
+        try:
+            vectors_embedding(doc.file_path, doc.id, doc.user_id)
+            doc.upload_status = DocumentStatus.COMPLETED
+        except Exception as e:
+            logging.error(e)
+            doc.upload_status = DocumentStatus.FAILED
+            doc.comment = "File Conversion Failure"
+
         session.commit()
-        return
-    doc.upload_status = DocumentStatus.COMPLETED
-    session.commit()
 
 
 @router.post("/upload")
@@ -72,7 +80,7 @@ async def file_upload(
             continue
         session.commit()
         processing_docs[doc.filename] = doc.id
-        background_task.add_task(embed_document, doc)
+        background_task.add_task(embed_document, doc.id)
     if not prohibited_files:
         return {
             "message": "Files upload successfully.",
