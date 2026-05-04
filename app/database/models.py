@@ -84,3 +84,16 @@ class NewChatResponse(SQLModel):
     sources: list[str]
     session_id: uuid.UUID
     title: str
+
+
+class ChatSessionPublic(SQLModel):
+    id: uuid.UUID
+    title: str
+
+
+class ChatMessagePublic(SQLModel):
+    id: uuid.UUID
+    role: str
+    content: str
+    sources: list[str]
+    created_at: datetime

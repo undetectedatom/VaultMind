@@ -6,8 +6,10 @@ from sqlmodel import Session, select
 from app.api.dependencies import get_cur_user, get_session
 from app.database.models import (
     ChatMessage,
+    ChatMessagePublic,
     ChatRequest,
     ChatSession,
+    ChatSessionPublic,
     ChatResponse,
     NewChatResponse,
     User,
@@ -111,18 +113,24 @@ async def chat_in_session(
     return ChatResponse(answer=answer, sources=sources)
 
 
-@router.get("")
+@router.get("", response_model=list[ChatSessionPublic])
 async def get_chat_sessions(
     user: Annotated[User, Depends(get_cur_user)],
     db_session: Annotated[Session, Depends(get_session)],
 ):
-    pass
+    statement = (
+        select(ChatSession)
+        .where(ChatSession.user_id == user.id)
+        .order_by(ChatSession.id.desc())
+    )
+    return db_session.exec(statement).all()
 
 
-@router.get("/{session_id}")
+@router.get("/{session_id}", response_model=list[ChatMessagePublic])
 async def get_chat_history(
     session_id: str,
     user: Annotated[User, Depends(get_cur_user)],
     db_session: Annotated[Session, Depends(get_session)],
 ):
-    pass
+    check_session(db_session, session_id, user.id)
+    return await get_history(db_session, session_id)
