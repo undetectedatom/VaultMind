@@ -43,6 +43,7 @@ def embed_document(doc_id: uuid.UUID):
 
         try:
             vectors_embedding(doc.file_path, doc.id, doc.user_id)
+            session.add(doc)
             doc.upload_status = DocumentStatus.COMPLETED
         except Exception as e:
             logging.error(e)

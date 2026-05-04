@@ -53,6 +53,18 @@ def get_chat_model(
             temperature=kwargs.get("temperature", 0.2),
         )
 
+    elif provider.startswith("doubao"):
+        from langchain_openai import ChatOpenAI
+
+        if not api_key:
+            raise ValueError("Doubao provider requires an 'api_key'.")
+        return ChatOpenAI(
+            model=model,
+            api_key=api_key,
+            base_url=base_url,
+            temperature=kwargs.get("temperature", 0.2),
+        )
+
     elif provider.startswith("ollama"):
         from langchain_community.chat_models import ChatOllama
 

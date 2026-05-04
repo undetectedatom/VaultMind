@@ -69,7 +69,7 @@ def vectors_embedding(file_path: str, document_id: str, user_id: str):
     # 3. Embed and Store
     embedding_service = settings.services.embedding_model
 
-    embeddings_model = get_embeddings(**embedding_service)
+    embeddings_model = get_embeddings(**embedding_service.model_dump())
 
     Chroma.from_documents(
         client=chroma_client,
@@ -84,7 +84,7 @@ def delete_vectors(user_id: str, document_id: str):
     Deletes vectors from a user's Chroma collection based on the document_id metadata.
     """
     # 1. Initialize the same embedding model used for insertion
-    embeddings_model = get_embeddings(**settings.services.embedding_model)
+    embeddings_model = get_embeddings(**settings.services.embedding_model.model_dump())
 
     # 2. Connect to the existing Chroma collection for this user
     vectorstore = Chroma(

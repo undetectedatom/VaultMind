@@ -22,9 +22,11 @@ def check_session(
 ):
     # Authorization
     # We must authorize both session id and user id, preventing anomalous user query
+    session_uuid = chat_session_id if isinstance(chat_session_id, uuid.UUID) else uuid.UUID(chat_session_id)
+    user_uuid = user_id if isinstance(user_id, uuid.UUID) else uuid.UUID(user_id)
     statement = select(ChatSession).where(
-        (ChatSession.id == uuid.UUID(chat_session_id))
-        & (ChatSession.user_id == uuid.UUID(user_id))
+        (ChatSession.id == session_uuid)
+        & (ChatSession.user_id == user_uuid)
     )
     chat_session = db_session.exec(statement).first()
     if not chat_session:
@@ -38,9 +40,10 @@ def check_session(
 async def get_history(
     db_session: Session, chat_session_id: uuid.UUID | str, limit: int = 10
 ):
+    session_uuid = chat_session_id if isinstance(chat_session_id, uuid.UUID) else uuid.UUID(chat_session_id)
     statement = (
         select(ChatMessage)
-        .where(ChatMessage.session_id == uuid.UUID(chat_session_id))
+        .where(ChatMessage.session_id == session_uuid)
         .order_by(ChatMessage.created_at.desc())
         .limit(limit)
     )
@@ -88,7 +91,7 @@ async def chat_in_session(
     check_session(db_session, chat_session_id, user.id)
 
     user_msg = ChatMessage(
-        session_id=chat_session_id, role="user", content=chat_request.query
+        session_id=uuid.UUID(chat_session_id), role="user", content=chat_request.query
     )
     db_session.add(user_msg)
     db_session.commit()

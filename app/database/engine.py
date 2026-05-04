@@ -8,6 +8,9 @@ engine = create_engine(f"sqlite:///{sqlite_file_name}", connect_args=connect_arg
 
 
 def create_db_and_tables():
+    # Models must be imported so SQLModel registers them in metadata
+    import app.database.models  # noqa: F401
+
     SQLModel.metadata.create_all(engine)
 
 

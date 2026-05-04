@@ -1,8 +1,6 @@
-import json
-from typing import Iterable
 import uuid
 
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from app.database.engine import chroma_client

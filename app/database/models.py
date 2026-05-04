@@ -53,8 +53,7 @@ class DocumentPublic(DocumentBase):
 
 
 class ChatSession(SQLModel, table=True):
-    # table name is defualt to chatsession
-    id: Annotated[uuid.UUID, Field(primary_key=True)]
+    id: Annotated[uuid.UUID, Field(default_factory=uuid.uuid4, primary_key=True)]
     user_id: Annotated[uuid.UUID, Field(foreign_key="user.id")]
     user: User = Relationship(back_populates="chat_sessions")
     messages: list["ChatMessage"] = Relationship(back_populates="session")
@@ -62,7 +61,7 @@ class ChatSession(SQLModel, table=True):
 
 
 class ChatMessage(SQLModel, table=True):
-    id: Annotated[uuid.UUID, Field(primary_key=True)]
+    id: Annotated[uuid.UUID, Field(default_factory=uuid.uuid4, primary_key=True)]
     session_id: Annotated[uuid.UUID, Field(foreign_key="chatsession.id")]
     session: ChatSession = Relationship(back_populates="messages")
     role: str

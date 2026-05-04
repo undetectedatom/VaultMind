@@ -19,13 +19,13 @@ class Settings(BaseSettings):
     dummy_pwd: str = secrets.token_urlsafe(32)
     rag_config_path: str = "rag_config.json"
 
-    doubao_api_key: str | None = None
-    openai_api_key: str | None = None
+    # API keys are auto-loaded from .env by provider name (e.g. doubao_api_key, openai_api_key)
+    # via the dynamic getattr loop in model_post_init
 
     services: Service | None = None
 
     model_config = SettingsConfigDict(
-        env_file=os.path.join(os.getcwd(), ".env"), extra="ignore"
+        env_file=os.path.join(os.getcwd(), ".env"), extra="allow"
     )
 
     def model_post_init(self, __context):
@@ -35,9 +35,10 @@ class Settings(BaseSettings):
         with open(self.rag_config_path, "r") as f:
             raw_config = AppConfig(**json.load(f))
 
-        # Inject API keys into the raw config
+        # Map provider names to Settings attribute names (hyphens -> underscores)
         for provider_name, provider_data in raw_config.providers.items():
-            env_api_key = getattr(self, f"{provider_name}_api_key", None)
+            attr_name = f"{provider_name.replace('-', '_')}_api_key"
+            env_api_key = getattr(self, attr_name, None)
             if env_api_key:
                 provider_data.api_key = env_api_key
 

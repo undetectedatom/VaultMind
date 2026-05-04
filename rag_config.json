@@ -29,6 +29,17 @@
           "dimension": 2048
         }
       }
+    },
+    "doubao": {
+      "base_url": "https://ark.cn-beijing.volces.com/api/coding/v3",
+      "models": {
+        "doubao-seed-2.0-pro": {
+          "context_window": 128000
+        },
+        "deepseek-v3.2": {
+          "context_window": 128000
+        }
+      }
     }
   },
   "activities": {
@@ -37,13 +48,13 @@
       "model": "ep-20260427161847-6rgwf"
     },
     "router": {
-      "provider": "openai",
-      "model": "gpt-4o-mini"
+      "provider": "doubao",
+      "model": "deepseek-v3.2"
     },
     "generation": [
       {
-        "provider": "ollama",
-        "model": "llama3:8b"
+        "provider": "doubao",
+        "model": "doubao-seed-2.0-pro"
       }
     ]
   }
