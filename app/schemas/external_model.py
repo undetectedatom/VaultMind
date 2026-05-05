@@ -45,6 +45,18 @@ class Activities(BaseModel):
     generation: list[Role]
 
 
+class HyDEConfig(BaseModel):
+    enabled: bool = False
+    temperature: float = 0.0
+
+
+class RoutingConfig(BaseModel):
+    enabled: bool = False
+    confidence_threshold: float = 0.5
+
+
 class AppConfig(BaseModel):
     providers: dict[str, ServiceProvider]
     activities: Activities
+    hyde: HyDEConfig = HyDEConfig()
+    routing: RoutingConfig = RoutingConfig()

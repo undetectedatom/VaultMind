@@ -7,6 +7,8 @@ from app.schemas.external_model import (
     ServiceModel,
     Role,
     AppConfig,
+    HyDEConfig,
+    RoutingConfig,
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -23,6 +25,8 @@ class Settings(BaseSettings):
     # via the dynamic getattr loop in model_post_init
 
     services: Service | None = None
+    hyde: HyDEConfig = HyDEConfig()
+    routing: RoutingConfig = RoutingConfig()
 
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.getcwd(), ".env"), extra="allow"
@@ -61,6 +65,9 @@ class Settings(BaseSettings):
                 resolve_model(role) for role in raw_config.activities.generation
             ],
         )
+
+        self.hyde = raw_config.hyde
+        self.routing = raw_config.routing
 
 
 @lru_cache

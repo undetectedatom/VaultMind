@@ -54,8 +54,20 @@
     "generation": [
       {
         "provider": "doubao",
+        "model": "deepseek-v3.2"
+      },
+      {
+        "provider": "doubao",
         "model": "doubao-seed-2.0-pro"
       }
     ]
+  },
+  "hyde": {
+    "enabled": false,
+    "temperature": 0.0
+  },
+  "routing": {
+    "enabled": false,
+    "confidence_threshold": 0.5
   }
 }

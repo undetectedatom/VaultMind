@@ -15,7 +15,7 @@ from langchain_text_splitters import (
 )
 
 from app.settings import settings
-from app.database.engine import chroma_client
+from app.database import engine
 from external_models import get_embeddings
 
 
@@ -41,10 +41,10 @@ def vectors_embedding(file_path: str, document_id: str, user_id: str):
             splitter = HTMLHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
             docs = splitter.split_text_from_file(file_path)
 
-        case ".pdf" | ".txt" | ".doc" | ".docx" | ".png" | ".jpg":
+        case ".pdf" | ".txt" | ".rst" | ".doc" | ".docx" | ".png" | ".jpg":
             if file_type == ".pdf":
                 loader = PyPDFLoader(file_path)
-            elif file_type == ".txt":
+            elif file_type in (".txt", ".rst"):
                 loader = TextLoader(file_path)
             elif file_type in [".doc", ".docx"]:
                 loader = UnstructuredWordDocumentLoader(file_path)
@@ -72,7 +72,7 @@ def vectors_embedding(file_path: str, document_id: str, user_id: str):
     embeddings_model = get_embeddings(**embedding_service.model_dump())
 
     Chroma.from_documents(
-        client=chroma_client,
+        client=engine.chroma_client,
         documents=chunks,
         embedding=embeddings_model,
         collection_name=f"user-{user_id}",
@@ -88,7 +88,7 @@ def delete_vectors(user_id: str, document_id: str):
 
     # 2. Connect to the existing Chroma collection for this user
     vectorstore = Chroma(
-        client=chroma_client,
+        client=engine.chroma_client,
         collection_name=f"user-{user_id}",
         embedding_function=embeddings_model,
     )

@@ -65,7 +65,7 @@ async def create_new_session(
         session_id=chat_session.id, role="user", content=chat_request.query
     )
     db_session.add(user_msg)
-    answer, sources = await knowledge_query([user_msg], user.id)
+    answer, sources, _ = await knowledge_query([user_msg], user.id)
     assistant_msg = ChatMessage(
         session_id=chat_session.id,
         role="assistant",
@@ -99,7 +99,7 @@ async def chat_in_session(
     db_session.commit()
 
     chat_history = await get_history(db_session, chat_session_id)
-    answer, sources = await knowledge_query(chat_history, user.id)
+    answer, sources, _ = await knowledge_query(chat_history, user.id)
 
     assistant_msg = ChatMessage(
         session_id=uuid.UUID(chat_session_id),
