@@ -46,12 +46,12 @@ class Activities(BaseModel):
 
 
 class HyDEConfig(BaseModel):
-    enabled: bool = False
+    enabled: bool = True
     temperature: float = 0.0
 
 
 class RoutingConfig(BaseModel):
-    enabled: bool = False
+    enabled: bool = True
     confidence_threshold: float = 0.5
 
 

@@ -1,6 +1,8 @@
 import logging
 import os
 
+from langchain_community.retrievers import BM25Retriever
+
 from langchain_community.document_loaders import (
     PyPDFLoader,
     TextLoader,
@@ -98,3 +100,27 @@ def delete_vectors(user_id: str, document_id: str):
         vectorstore.delete(where={"document_id": str(document_id)})
     except Exception as e:
         logging.error(e)
+
+
+global_bm25_retriever = None
+
+
+def get_bm25_retriever(vectorstore):
+    """
+    Singleton pattern to cache the BM25 index in memory.
+    Builds the index on the first call and returns the cached version thereafter.
+    """
+    global global_bm25_retriever
+
+    if global_bm25_retriever is None:
+        import logging
+
+        logging.info("Building BM25 Index in memory for the first time...")
+        all_db_docs = vectorstore.get()
+        if all_db_docs and all_db_docs.get("documents"):
+            global_bm25_retriever = BM25Retriever.from_texts(
+                texts=all_db_docs["documents"], metadatas=all_db_docs["metadatas"]
+            )
+            global_bm25_retriever.k = 4  # Retrieve top 4 sparse matches
+
+    return global_bm25_retriever
