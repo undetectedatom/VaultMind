@@ -78,6 +78,7 @@ def vectors_embedding(file_path: str, document_id: str, user_id: str):
         documents=chunks,
         embedding=embeddings_model,
         collection_name=f"user-{user_id}",
+        collection_metadata={"hnsw:space": "cosine"},
     )
 
 
@@ -93,6 +94,7 @@ def delete_vectors(user_id: str, document_id: str):
         client=engine.chroma_client,
         collection_name=f"user-{user_id}",
         embedding_function=embeddings_model,
+        collection_metadata={"hnsw:space": "cosine"},
     )
 
     # 3. Delete documents using a metadata filter ('where' clause)

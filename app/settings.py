@@ -1,16 +1,19 @@
-from functools import lru_cache
 import json
 import os
 import secrets
+from functools import lru_cache
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 from app.schemas.external_model import (
-    Service,
-    ServiceModel,
-    Role,
     AppConfig,
     HyDEConfig,
+    RetrievalConfig,
+    Role,
     RoutingConfig,
+    Service,
+    ServiceModel,
 )
-from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -27,6 +30,7 @@ class Settings(BaseSettings):
     services: Service | None = None
     hyde: HyDEConfig = HyDEConfig()
     routing: RoutingConfig = RoutingConfig()
+    retrieval: RetrievalConfig = RetrievalConfig()
 
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.getcwd(), ".env"), extra="allow"
@@ -68,6 +72,7 @@ class Settings(BaseSettings):
 
         self.hyde = raw_config.hyde
         self.routing = raw_config.routing
+        self.retrieval = raw_config.retrieval
 
 
 @lru_cache

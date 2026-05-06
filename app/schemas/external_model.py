@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # ------- RAG Data Schema -------
 # Wrappers for use in global settings and downstream RAG pipelines
@@ -55,8 +55,31 @@ class RoutingConfig(BaseModel):
     confidence_threshold: float = 0.5
 
 
+class RetrievalConfig(BaseModel):
+    top_k: int = 4
+    min_relevance: float = 0.0
+
+
 class AppConfig(BaseModel):
     providers: dict[str, ServiceProvider]
     activities: Activities
     hyde: HyDEConfig = HyDEConfig()
     routing: RoutingConfig = RoutingConfig()
+    retrieval: RetrievalConfig = RetrievalConfig()
+
+
+# LLM responding format
+
+
+class CitedSource(BaseModel):
+    document_id: str = Field(description="The exact UUID of the document used.")
+    filename: str = Field(description="The human-readable name of the file.")
+
+
+class RAGResponseTemplate(BaseModel):
+    answer: str = Field(
+        description="The detailed, professional answer to the user's query formatted in Markdown."
+    )
+    used_sources: list[CitedSource] = Field(
+        description="A list of the specific documents you used to generate the answer. If you used internal knowledge and no documents, return an empty list."
+    )

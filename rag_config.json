@@ -63,11 +63,14 @@
     ]
   },
   "hyde": {
-    "enabled": false,
+    "enabled": true,
     "temperature": 0.0
   },
   "routing": {
-    "enabled": false,
+    "enabled": true,
     "confidence_threshold": 0.5
+  },
+  "retrieval": {
+    "top_k": 4
   }
 }

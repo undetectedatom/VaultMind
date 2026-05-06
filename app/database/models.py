@@ -66,7 +66,7 @@ class ChatMessage(SQLModel, table=True):
     session: ChatSession = Relationship(back_populates="messages")
     role: str
     content: str
-    sources: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    sources: list[dict] = Field(default_factory=list, sa_column=Column(JSON))
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -81,7 +81,7 @@ class ChatResponse(SQLModel):
 
 class NewChatResponse(SQLModel):
     answer: str
-    sources: list[str]
+    sources: list[dict]
     session_id: uuid.UUID
     title: str
 
@@ -95,5 +95,5 @@ class ChatMessagePublic(SQLModel):
     id: uuid.UUID
     role: str
     content: str
-    sources: list[str]
+    sources: list[dict]
     created_at: datetime

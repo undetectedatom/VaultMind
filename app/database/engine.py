@@ -4,14 +4,14 @@ from sqlmodel import SQLModel, create_engine
 # --- SQL Database ---
 sqlite_file_name = "database.db"
 connect_args = {"check_same_thread": False}
-engine = create_engine(f"sqlite:///{sqlite_file_name}", connect_args=connect_args)
+sql_engine = create_engine(f"sqlite:///{sqlite_file_name}", connect_args=connect_args)
 
 
 def create_db_and_tables():
     # Models must be imported so SQLModel registers them in metadata
     import app.database.models  # noqa: F401
 
-    SQLModel.metadata.create_all(engine)
+    SQLModel.metadata.create_all(sql_engine)
 
 
 # --- Vector Database Singleton ---

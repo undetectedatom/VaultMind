@@ -7,13 +7,13 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlmodel import Session, select
 
-from app.database.engine import engine
+from app.database.engine import sql_engine
 from app.database.models import User
 from app.settings import settings
 
 
 def get_session():
-    with Session(engine) as session:
+    with Session(sql_engine) as session:
         yield session
 
 

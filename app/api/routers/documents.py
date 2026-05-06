@@ -2,7 +2,7 @@ import logging
 import os
 import uuid
 from typing import Annotated
-from app.database.engine import engine
+from app.database.engine import sql_engine
 
 from fastapi import (
     APIRouter,
@@ -36,7 +36,7 @@ def verify_file(file: UploadFile):
 
 
 def embed_document(doc_id: uuid.UUID):
-    with Session(engine) as session:
+    with Session(sql_engine) as session:
         doc = session.get(Document, doc_id)
         if not doc:
             return
