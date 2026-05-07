@@ -1,6 +1,7 @@
 import asyncio
 import uuid
 
+from fastapi import HTTPException, status
 from langchain_chroma import Chroma
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from sqlmodel import Session, select
@@ -100,7 +101,6 @@ async def knowledge_query(
 
         retrieval_confidence = max(scores) if scores else 0.0
         metadata["retrieval_confidence"] = retrieval_confidence
-        metadata["docs_passed_filter"] = len(vector_docs)
     else:
         vector_docs = vectorstore.similarity_search(search_text, k=top_k)
 
@@ -190,16 +190,32 @@ async def knowledge_query(
     llm = get_chat_model(**generation_config)
 
     # --- 6. BIND THE TEMPLATE TO THE LLM ---
-    structured_llm = llm.with_structured_output(
-        RAGResponseTemplate, method="function_calling"
-    )
+    try:
+        # Change method to "json_mode"
+        structured_llm = llm.with_structured_output(
+            RAGResponseTemplate, method="json_mode", include_raw=True
+        )
+    except TypeError:
+        structured_llm = llm.with_structured_output(
+            RAGResponseTemplate, method="json_mode"
+        )
 
     # --- 7. UPDATED SYSTEM INSTRUCTION ---
     system_instruction = (
         "You are a professional technical assistant. "
         "Review the provided context snippets. Only use the snippets that are relevant to the user's query. "
-        "Extract the 'File' and 'ID' from the header of the snippets you use, and include them in your structured output sources list. "
         "If no snippets are relevant, answer from your internal knowledge and leave the sources list empty.\n\n"
+        "IMPORTANT: You MUST respond purely in valid JSON format. "
+        "Your output must perfectly match this exact JSON structure:\n"
+        "{\n"
+        '  "answer": "Your detailed markdown answer here...",\n'
+        '  "sources": [\n'
+        "    {\n"
+        '      "document_id": "extract the ID from the context header",\n'
+        '      "filename": "extract the File from the context header"\n'
+        "    }\n"
+        "  ]\n"
+        "}\n\n"
         f"CONTEXT:\n{context_text}"
     )
 
@@ -214,13 +230,38 @@ async def knowledge_query(
     # --- 8. GENERATE STRUCTURED OUTPUT ---
     response_obj = await structured_llm.ainvoke(messages)
 
+    raw_response = None
+    parsed_response = None
+    if isinstance(response_obj, dict) and "parsed" in response_obj:
+        parsed_response = response_obj.get("parsed")
+        raw_response = response_obj.get("raw")
+
+    if parsed_response is None or raw_response is None:
+        metadata["parse_error"] = "structured_output_missing"
+        if raw_response is None or parsed_response is None:
+            print(f"Structured output missing. response_obj={repr(response_obj)}")
+        else:
+            print(f"Structured output missing. raw_response={repr(raw_response)}")
+
+        raise HTTPException(status_code=status.HTTP_417_EXPECTATION_FAILED)
+
+    usage = {}
+    if hasattr(raw_response, "response_metadata"):
+        usage = raw_response.response_metadata.get("token_usage", {})
+    if not usage and hasattr(raw_response, "usage_metadata"):
+        usage = raw_response.usage_metadata
+
+    if usage:
+        metadata.setdefault("prompt_tokens", usage.get("prompt_tokens"))
+        metadata.setdefault("completion_tokens", usage.get("completion_tokens"))
+
     # Extract data cleanly
-    answer_content = response_obj.answer
+    answer_content = parsed_response.answer
 
     # Format sources for your API response
     final_sources = [
         {"document_id": src.document_id, "filename": src.filename}
-        for src in response_obj.used_sources
+        for src in parsed_response.sources
     ]
 
     return answer_content, final_sources, metadata

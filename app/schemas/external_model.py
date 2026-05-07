@@ -80,6 +80,6 @@ class RAGResponseTemplate(BaseModel):
     answer: str = Field(
         description="The detailed, professional answer to the user's query formatted in Markdown."
     )
-    used_sources: list[CitedSource] = Field(
+    sources: list[CitedSource] = Field(
         description="A list of the specific documents you used to generate the answer. If you used internal knowledge and no documents, return an empty list."
     )

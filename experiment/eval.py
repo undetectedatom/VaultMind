@@ -58,7 +58,7 @@ class ExperimentRunner:
             dataset = json.load(f)
 
         results = []
-        print("🚀 Starting Evaluation...\n")
+        print("Starting Evaluation...\n")
 
         for item in tqdm(dataset, desc="Processing Queries"):
             cluster = item["cluster"]
@@ -71,17 +71,17 @@ class ExperimentRunner:
                     f"{self.base_url}/v1/chat",
                     headers=headers,
                     json={"query": item["query"]},
-                    timeout=45,
+                    timeout=145,
                 )
                 response.raise_for_status()
                 res_data = response.json()
             except Exception as e:
-                print(f"\n❌ API Error on {item['id']}: {e}")
+                print(f"\n API Error on {item['id']}: {e}")
                 continue
 
             latency = time.time() - start_time
             sources = res_data.get("sources", [])
-            meta = res_data.get("metadata", {})
+            meta = res_data.get("meta") or res_data.get("metadata", {})
 
             # 1. Retrieval Metrics
             recall, mrr = self.evaluate_recall_and_mrr(
@@ -117,7 +117,7 @@ class ExperimentRunner:
                     "completion_tokens": c_tokens,
                 }
             )
-            time.sleep(0.2)
+            time.sleep(1)
 
         # Export Results
         df = pd.DataFrame(results)

@@ -1,4 +1,3 @@
-import logging
 from typing import Annotated
 import uuid
 
@@ -41,6 +40,5 @@ async def get_cur_user(
         user = session.exec(statement).first()
         return user
 
-    except Exception as e:
-        logging.error(e)
+    except Exception:
         raise credentials_exception

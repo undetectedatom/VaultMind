@@ -78,7 +78,6 @@ async def create_new_session(
         role="assistant",
         content=answer,
         sources=sources,
-        meta=meta,
     )
     db_session.add(assistant_msg)
     db_session.commit()
@@ -119,7 +118,7 @@ async def chat_in_session(
     db_session.add(assistant_msg)
     db_session.commit()
 
-    return ChatResponse(answer=answer, sources=sources, metadata=meta)
+    return ChatResponse(answer=answer, sources=sources, meta=meta)
 
 
 @router.get("", response_model=list[ChatSessionPublic])
