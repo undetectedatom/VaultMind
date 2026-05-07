@@ -1,5 +1,4 @@
 import asyncio
-import os
 import uuid
 
 from langchain_chroma import Chroma
@@ -45,6 +44,7 @@ async def knowledge_query(
         client=engine.chroma_client,
         collection_name=f"user-{user_id}",
         embedding_function=embeddings_model,
+        collection_metadata={"hnsw:space": "cosine"},
     )
 
     # --- 1. ASYNC PARALLEL EXECUTION (HyDE + Complexity) ---
@@ -190,8 +190,9 @@ async def knowledge_query(
     llm = get_chat_model(**generation_config)
 
     # --- 6. BIND THE TEMPLATE TO THE LLM ---
-    # This forces the LLM to output the exact RAGResponseTemplate JSON structure
-    structured_llm = llm.with_structured_output(RAGResponseTemplate)
+    structured_llm = llm.with_structured_output(
+        RAGResponseTemplate, method="function_calling"
+    )
 
     # --- 7. UPDATED SYSTEM INSTRUCTION ---
     system_instruction = (

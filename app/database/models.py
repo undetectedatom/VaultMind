@@ -1,6 +1,6 @@
 import enum
 from datetime import datetime, timezone
-from typing import Annotated
+from typing import Annotated, Any
 import uuid
 
 from sqlmodel import JSON, Column, Field, Relationship, SQLModel
@@ -76,7 +76,8 @@ class ChatRequest(SQLModel):
 
 class ChatResponse(SQLModel):
     answer: str
-    sources: list[str]
+    sources: list[dict]
+    meta: dict[str, Any] = Field(default_factory=dict)
 
 
 class NewChatResponse(SQLModel):
@@ -84,6 +85,7 @@ class NewChatResponse(SQLModel):
     sources: list[dict]
     session_id: uuid.UUID
     title: str
+    meta: dict[str, Any] = Field(default_factory=dict)
 
 
 class ChatSessionPublic(SQLModel):

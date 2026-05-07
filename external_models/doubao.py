@@ -1,6 +1,10 @@
 import requests
+import threading
 from typing import List
 from langchain_core.embeddings import Embeddings
+
+MAX_CONCURRENT_EMBEDDINGS = 4
+embedding_pool = threading.Semaphore(MAX_CONCURRENT_EMBEDDINGS)
 
 
 class DoubaoMultimodalEmbeddings(Embeddings):
@@ -29,8 +33,9 @@ class DoubaoMultimodalEmbeddings(Embeddings):
                 "encoding_format": "float",
             }
 
-            response = requests.post(self.base_url, headers=headers, json=payload)
-            response.raise_for_status()
+            with embedding_pool:
+                response = requests.post(self.base_url, headers=headers, json=payload)
+                response.raise_for_status()
 
             data = response.json()
 
