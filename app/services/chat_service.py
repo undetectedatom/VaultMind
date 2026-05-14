@@ -90,11 +90,11 @@ async def knowledge_query(
     vector_docs = []
     retrieval_confidence = 1.0
 
-    top_k = settings.retrieval.top_k
+    configured_top_k = settings.retrieval.top_k
 
     if settings.routing.enabled:
         results = vectorstore.similarity_search_with_relevance_scores(
-            search_text, k=top_k
+            search_text, k=configured_top_k
         )
         vector_docs = [doc for doc, score in results]
         scores = [score for doc, score in results]
@@ -102,14 +102,17 @@ async def knowledge_query(
         retrieval_confidence = max(scores) if scores else 0.0
         metadata["retrieval_confidence"] = retrieval_confidence
     else:
-        vector_docs = vectorstore.similarity_search(search_text, k=top_k)
+        vector_docs = vectorstore.similarity_search(search_text, k=configured_top_k)
 
-    top_k = min(len(vector_docs), top_k)
+    bm25_retriever = get_bm25_retriever(
+        vectorstore=vectorstore,
+        user_id=str(user_id),
+        k=configured_top_k,
+    )
+    bm25_docs = bm25_retriever.invoke(search_text) if bm25_retriever else []
 
-    # Fetch BM25 from our blazingly fast RAM cache
-    bm25_retriever = get_bm25_retriever(vectorstore)
-    bm25_retriever.k = top_k
-    bm25_docs = bm25_retriever.invoke(search_text)
+    metadata["vector_retrieved_count"] = len(vector_docs)
+    metadata["bm25_retrieved_count"] = len(bm25_docs)
 
     # Apply Reciprocal Rank Fusion (RRF)
     doc_scores = {}
@@ -127,7 +130,7 @@ async def knowledge_query(
     reranked_results = sorted(
         doc_scores.values(), key=lambda x: x["score"], reverse=True
     )
-    retrieved_docs = [item["doc"] for item in reranked_results[:top_k]]
+    retrieved_docs = [item["doc"] for item in reranked_results[:configured_top_k]]
 
     # --- 3. FETCH REAL FILENAMES FROM SQL DATABASE FIRST ---
     doc_id_strings = list(
@@ -160,6 +163,8 @@ async def knowledge_query(
 
     # --- 4. BUILD TAGGED CONTEXT FOR THE LLM ---
     context_chunks = []
+    retrieved_filenames = []
+    retrieved_document_ids = []
 
     for doc in retrieved_docs:
         doc_id = doc.metadata.get("document_id")
@@ -170,6 +175,12 @@ async def knowledge_query(
             f"--- [File: {filename} | ID: {doc_id}] ---\n{doc.page_content}"
         )
 
+        retrieved_filenames.append(filename)
+        retrieved_document_ids.append(str(doc_id))
+
+    metadata["retrieved_filenames"] = retrieved_filenames
+    metadata["retrieved_document_ids"] = retrieved_document_ids
+    metadata["retrieved_context_count"] = len(retrieved_docs)
     context_text = "\n\n".join(context_chunks)
 
     # --- 5. DYNAMIC ROUTING ---
@@ -190,20 +201,24 @@ async def knowledge_query(
     llm = get_chat_model(**generation_config)
 
     # --- 6. BIND THE TEMPLATE TO THE LLM ---
-    try:
-        # Change method to "json_mode"
-        structured_llm = llm.with_structured_output(
-            RAGResponseTemplate, method="json_mode", include_raw=True
-        )
-    except TypeError:
-        structured_llm = llm.with_structured_output(
-            RAGResponseTemplate, method="json_mode"
-        )
+    # try:
+    #     # Change method to "json_mode"
+    #     structured_llm = llm.with_structured_output(
+    #         RAGResponseTemplate, method="json_mode", include_raw=True
+    #     )
+    # except TypeError:
+    #     structured_llm = llm.with_structured_output(
+    #         RAGResponseTemplate, method="json_mode"
+    #     )
 
     # --- 7. UPDATED SYSTEM INSTRUCTION ---
     system_instruction = (
         "You are a professional technical assistant. "
         "Review the provided context snippets. Only use the snippets that are relevant to the user's query. "
+        "CRITICAL RULES:\n"
+        "1. BE PROFESSIONAL: Answer directly and concisely. Do not exceed 3 paragraphs. Do not output conversational filler.\n"
+        "2. CITATION RIGOR: If the context snippets do NOT contain the exact information needed to answer the prompt, YOU MUST leave the sources list completely empty.\n"
+        "3. NO FORCED MATCHES: Do not force an answer if the provided context is only tangentially related.\n\n"
         "If no snippets are relevant, answer from your internal knowledge and leave the sources list empty.\n\n"
         "IMPORTANT: You MUST respond purely in valid JSON format. "
         "Your output must perfectly match this exact JSON structure:\n"
@@ -228,22 +243,31 @@ async def knowledge_query(
     messages.append(HumanMessage(content=latest_query))
 
     # --- 8. GENERATE STRUCTURED OUTPUT ---
-    response_obj = await structured_llm.ainvoke(messages)
+    import json
+    from langchain_core.output_parsers import PydanticOutputParser
+    from langchain_core.exceptions import OutputParserException
 
-    raw_response = None
+    raw_response = await llm.ainvoke(messages)
+
+    parser = PydanticOutputParser(pydantic_object=RAGResponseTemplate)
     parsed_response = None
-    if isinstance(response_obj, dict) and "parsed" in response_obj:
-        parsed_response = response_obj.get("parsed")
-        raw_response = response_obj.get("raw")
 
-    if parsed_response is None or raw_response is None:
-        metadata["parse_error"] = "structured_output_missing"
-        if raw_response is None or parsed_response is None:
-            print(f"Structured output missing. response_obj={repr(response_obj)}")
-        else:
-            print(f"Structured output missing. raw_response={repr(raw_response)}")
+    try:
+        parsed_response = parser.parse(raw_response.content)
+    except OutputParserException:
+        clean_content = raw_response.content.strip()
+        if clean_content.startswith("```json"):
+            clean_content = clean_content[7:]
+        if clean_content.endswith("```"):
+            clean_content = clean_content[:-3]
 
-        raise HTTPException(status_code=status.HTTP_417_EXPECTATION_FAILED)
+        try:
+            parsed_data = json.loads(clean_content.strip())
+            parsed_response = RAGResponseTemplate(**parsed_data)
+        except Exception:
+            metadata["parse_error"] = "json_decode_failed"
+            print(f"Failed to parse LLM output. Raw content:\n{raw_response.content}")
+            raise HTTPException(status_code=status.HTTP_417_EXPECTATION_FAILED)
 
     usage = {}
     if hasattr(raw_response, "response_metadata"):
@@ -252,13 +276,10 @@ async def knowledge_query(
         usage = raw_response.usage_metadata
 
     if usage:
-        metadata.setdefault("prompt_tokens", usage.get("prompt_tokens"))
-        metadata.setdefault("completion_tokens", usage.get("completion_tokens"))
+        metadata.setdefault("prompt_tokens", usage.get("prompt_tokens", 0))
+        metadata.setdefault("completion_tokens", usage.get("completion_tokens", 0))
 
-    # Extract data cleanly
     answer_content = parsed_response.answer
-
-    # Format sources for your API response
     final_sources = [
         {"document_id": src.document_id, "filename": src.filename}
         for src in parsed_response.sources

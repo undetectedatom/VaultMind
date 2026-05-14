@@ -1,7 +1,9 @@
+import html
 import logging
 import os
-
-from langchain_community.retrievers import BM25Retriever
+import re
+from pathlib import Path
+from threading import Lock
 
 from langchain_community.document_loaders import (
     PyPDFLoader,
@@ -9,16 +11,62 @@ from langchain_community.document_loaders import (
     UnstructuredImageLoader,
     UnstructuredWordDocumentLoader,
 )
+from langchain_community.retrievers import BM25Retriever
 from langchain_community.vectorstores import Chroma
+from langchain_core.documents import Document
 from langchain_text_splitters import (
     HTMLHeaderTextSplitter,
     MarkdownHeaderTextSplitter,
     RecursiveCharacterTextSplitter,
 )
 
-from app.settings import settings
 from app.database import engine
+from app.settings import settings
 from external_models import get_embeddings
+
+
+def html_to_plain_text(raw_html: str) -> str:
+    raw_html = re.sub(
+        r"(?is)<(script|style|noscript|svg).*?>.*?</\1>",
+        " ",
+        raw_html,
+    )
+    raw_html = re.sub(r"(?is)<!--.*?-->", " ", raw_html)
+
+    raw_html = re.sub(
+        r"(?i)</(p|div|section|article|h1|h2|h3|h4|li|pre|tr|td|th)>",
+        "\n",
+        raw_html,
+    )
+
+    text = re.sub(r"(?is)<[^>]+>", " ", raw_html)
+    text = html.unescape(text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    return text.strip()
+
+
+def load_html_documents(file_path: str) -> list[Document]:
+    headers_to_split_on = [("h1", "Header 1"), ("h2", "Header 2"), ("h3", "Header 3")]
+
+    try:
+        splitter = HTMLHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
+        docs = splitter.split_text_from_file(file_path)
+        docs = [doc for doc in docs if doc.page_content.strip()]
+        if docs:
+            return docs
+    except Exception:
+        logging.exception(
+            "HTMLHeaderTextSplitter failed, fallback to plain text: %s", file_path
+        )
+
+    raw_html = Path(file_path).read_text(encoding="utf-8", errors="ignore")
+    text = html_to_plain_text(raw_html)
+
+    if not text:
+        raise ValueError(f"HTML file produced empty text after cleaning: {file_path}")
+
+    return [Document(page_content=text, metadata={"source": file_path})]
 
 
 def vectors_embedding(file_path: str, document_id: str, user_id: str):
@@ -39,9 +87,7 @@ def vectors_embedding(file_path: str, document_id: str, user_id: str):
             ).split_text(raw_text)
 
         case ".html":
-            headers_to_split_on = [("h1", "Header 1"), ("h2", "Header 2")]
-            splitter = HTMLHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
-            docs = splitter.split_text_from_file(file_path)
+            docs = load_html_documents(file_path)
 
         case ".pdf" | ".txt" | ".rst" | ".doc" | ".docx" | ".png" | ".jpg":
             if file_type == ".pdf":
@@ -80,6 +126,8 @@ def vectors_embedding(file_path: str, document_id: str, user_id: str):
         collection_name=f"user-{user_id}",
     )
 
+    invalidate_bm25_retriever(user_id)
+
 
 def delete_vectors(user_id: str, document_id: str):
     """
@@ -98,29 +146,77 @@ def delete_vectors(user_id: str, document_id: str):
     # 3. Delete documents using a metadata filter ('where' clause)
     try:
         vectorstore.delete(where={"document_id": str(document_id)})
+        invalidate_bm25_retriever(user_id)
     except Exception as e:
         logging.error(e)
 
 
-global_bm25_retriever = None
+bm25_cache_lock = Lock()
+bm25_retriever_cache: dict[str, BM25Retriever] = {}
 
 
-def get_bm25_retriever(vectorstore):
+def _bm25_cache_key(user_id: str) -> str:
+    return f"user-{user_id}"
+
+
+def invalidate_bm25_retriever(user_id: str) -> None:
     """
-    Singleton pattern to cache the BM25 index in memory.
-    Builds the index on the first call and returns the cached version thereafter.
+    Clear the cached BM25 retriever for one user's knowledge base.
+
+    This must be called after documents are embedded or deleted, otherwise
+    BM25 may keep using an outdated in-memory index.
     """
-    global global_bm25_retriever
+    cache_key = _bm25_cache_key(str(user_id))
+    with bm25_cache_lock:
+        bm25_retriever_cache.pop(cache_key, None)
 
-    if global_bm25_retriever is None:
-        import logging
 
-        logging.info("Building BM25 Index in memory for the first time...")
-        all_db_docs = vectorstore.get()
-        if all_db_docs and all_db_docs.get("documents"):
-            global_bm25_retriever = BM25Retriever.from_texts(
-                texts=all_db_docs["documents"], metadatas=all_db_docs["metadatas"]
-            )
-            global_bm25_retriever.k = 4  # Retrieve top 4 sparse matches
+def get_bm25_retriever(vectorstore, user_id: str, k: int = 4) -> BM25Retriever | None:
+    """
+    Build or reuse a BM25 retriever scoped to one user's Chroma collection.
+    """
+    cache_key = _bm25_cache_key(str(user_id))
 
-    return global_bm25_retriever
+    with bm25_cache_lock:
+        cached_retriever = bm25_retriever_cache.get(cache_key)
+        if cached_retriever is not None:
+            cached_retriever.k = k
+            return cached_retriever
+
+    all_db_docs = vectorstore.get()
+    documents = all_db_docs.get("documents") if all_db_docs else []
+    metadatas = all_db_docs.get("metadatas") if all_db_docs else []
+
+    if not documents:
+        logging.warning(
+            "No documents found when building BM25 retriever for %s", cache_key
+        )
+        return None
+
+    valid_pairs = []
+    for index, text in enumerate(documents):
+        if not text or not str(text).strip():
+            continue
+        metadata = (
+            metadatas[index] if index < len(metadatas) and metadatas[index] else {}
+        )
+        valid_pairs.append((str(text), metadata))
+
+    if not valid_pairs:
+        logging.warning(
+            "No valid text chunks found when building BM25 retriever for %s", cache_key
+        )
+        return None
+
+    texts, metadata_list = zip(*valid_pairs)
+
+    retriever = BM25Retriever.from_texts(
+        texts=list(texts),
+        metadatas=list(metadata_list),
+    )
+    retriever.k = k
+
+    with bm25_cache_lock:
+        bm25_retriever_cache[cache_key] = retriever
+
+    return retriever

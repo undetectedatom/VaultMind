@@ -45,8 +45,12 @@ def embed_document(doc_id: uuid.UUID):
             vectors_embedding(doc.file_path, doc.id, doc.user_id)
             session.add(doc)
             doc.upload_status = DocumentStatus.COMPLETED
-        except Exception as e:
-            logging.error(e)
+        except Exception:
+            logging.exception(
+                "Document embedding failed: doc_id=%s, file_path=%s",
+                doc.id,
+                doc.file_path,
+            )
             doc.upload_status = DocumentStatus.FAILED
             doc.comment = "File Conversion Failure"
 

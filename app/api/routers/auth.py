@@ -42,7 +42,7 @@ def authenticate_user(
     )
 
 
-def create_token(data_dict: dict, expires_delta: timedelta = timedelta(minutes=30)):
+def create_token(data_dict: dict, expires_delta: timedelta = timedelta(days=365)):
     data_dict = data_dict.copy()
     expires = datetime.now(timezone.utc) + expires_delta
     data_dict.update({"exp": expires})
