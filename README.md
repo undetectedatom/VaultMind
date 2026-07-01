@@ -21,6 +21,8 @@ VaultMind is a technical-document RAG backend built with FastAPI. It is designed
 4. The router selects an appropriate generation model from the configured model set.
 5. The final answer is returned as structured JSON together with source metadata.
 
+![alt text](<attachment/RAG Meta.jpg>)
+
 ## Stack
 
 - FastAPI
@@ -47,6 +49,8 @@ Runtime settings are loaded from:
 - `POST /api/chat`
 - `POST /api/chat/{chat_session_id}`
 
+## Tests
+![alt text](attachment/Test.png)
 ## Notes
 
 The implementation is intentionally modular: document ingestion, retrieval, routing, and generation are separated into dedicated services so the pipeline can be tuned or replaced without rewriting the API layer.
