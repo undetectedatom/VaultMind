@@ -1,9 +1,12 @@
 import asyncio
+import json
+import logging
+import re
 import uuid
 
 from fastapi import HTTPException, status
-from langchain_chroma import Chroma
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from pydantic import ValidationError
 from sqlmodel import Session, select
 
 from app.database import engine
@@ -11,9 +14,39 @@ from app.database.models import ChatMessage, Document
 from app.schemas.external_model import RAGResponseTemplate
 from app.services.complexity_service import evaluate_complexity_with_llm
 from app.services.hyde_service import generate_hypothetical_document
-from app.services.vector_database import get_bm25_retriever
+from app.services.routing_service import select_generation_model
+from app.services.vector_database import get_bm25_retriever, get_user_vectorstore
 from app.settings import settings
-from external_models import get_chat_model, get_embeddings
+from external_models import get_chat_model
+
+logger = logging.getLogger(__name__)
+
+_JSON_FENCE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
+
+
+def parse_rag_response(content: str) -> RAGResponseTemplate:
+    """
+    Parse the generation model's raw output into a RAGResponseTemplate.
+
+    Models do not always return bare JSON: some wrap it in a ```json fence or
+    add a sentence before or after it. Try the raw text, then any fenced
+    block, then the outermost {...} span.
+    """
+    text = content.strip()
+    candidates = [text]
+    fenced = _JSON_FENCE.search(text)
+    if fenced:
+        candidates.append(fenced.group(1))
+    start, end = text.find("{"), text.rfind("}")
+    if start != -1 and end > start:
+        candidates.append(text[start : end + 1])
+
+    for candidate in candidates:
+        try:
+            return RAGResponseTemplate.model_validate(json.loads(candidate))
+        except (json.JSONDecodeError, ValidationError):
+            continue
+    raise ValueError("Model output is not a valid RAG response JSON object.")
 
 
 async def generate_title(query: str) -> str:
@@ -25,7 +58,7 @@ async def generate_title(query: str) -> str:
         "Generate a very concise title for user's query subject. Do not use quotes or punctuation. Use the same language as query."
     )
     prompt = HumanMessage(query)
-    response = llm.invoke([instruction, prompt])
+    response = await llm.ainvoke([instruction, prompt])
     return response.content.strip()
 
 
@@ -38,15 +71,7 @@ async def knowledge_query(
     chat_history = sorted(chat_history, key=lambda x: x.created_at)
     latest_query = chat_history[-1].content
 
-    embedding_config = settings.services.embedding_model.model_dump()
-    embeddings_model = get_embeddings(**embedding_config)
-
-    vectorstore = Chroma(
-        client=engine.chroma_client,
-        collection_name=f"user-{user_id}",
-        embedding_function=embeddings_model,
-        collection_metadata={"hnsw:space": "cosine"},
-    )
+    vectorstore = get_user_vectorstore(str(user_id))
 
     # --- 1. ASYNC PARALLEL EXECUTION (HyDE + Complexity) ---
     search_text = latest_query
@@ -93,8 +118,10 @@ async def knowledge_query(
     configured_top_k = settings.retrieval.top_k
 
     if settings.routing.enabled:
-        results = vectorstore.similarity_search_with_relevance_scores(
-            search_text, k=configured_top_k
+        results = await asyncio.to_thread(
+            vectorstore.similarity_search_with_relevance_scores,
+            search_text,
+            k=configured_top_k,
         )
         vector_docs = [doc for doc, score in results]
         scores = [score for doc, score in results]
@@ -102,14 +129,21 @@ async def knowledge_query(
         retrieval_confidence = max(scores) if scores else 0.0
         metadata["retrieval_confidence"] = retrieval_confidence
     else:
-        vector_docs = vectorstore.similarity_search(search_text, k=configured_top_k)
+        vector_docs = await asyncio.to_thread(
+            vectorstore.similarity_search, search_text, k=configured_top_k
+        )
 
-    bm25_retriever = get_bm25_retriever(
+    bm25_retriever = await asyncio.to_thread(
+        get_bm25_retriever,
         vectorstore=vectorstore,
         user_id=str(user_id),
         k=configured_top_k,
     )
-    bm25_docs = bm25_retriever.invoke(search_text) if bm25_retriever else []
+    bm25_docs = (
+        await asyncio.to_thread(bm25_retriever.invoke, search_text)
+        if bm25_retriever
+        else []
+    )
 
     metadata["vector_retrieved_count"] = len(vector_docs)
     metadata["bm25_retrieved_count"] = len(bm25_docs)
@@ -185,8 +219,6 @@ async def knowledge_query(
 
     # --- 5. DYNAMIC ROUTING ---
     if settings.routing.enabled:
-        from app.services.routing_service import select_generation_model
-
         selected_model, route_reason = select_generation_model(
             query_complexity=query_complexity,
             retrieval_confidence=retrieval_confidence,
@@ -200,18 +232,7 @@ async def knowledge_query(
 
     llm = get_chat_model(**generation_config)
 
-    # --- 6. BIND THE TEMPLATE TO THE LLM ---
-    # try:
-    #     # Change method to "json_mode"
-    #     structured_llm = llm.with_structured_output(
-    #         RAGResponseTemplate, method="json_mode", include_raw=True
-    #     )
-    # except TypeError:
-    #     structured_llm = llm.with_structured_output(
-    #         RAGResponseTemplate, method="json_mode"
-    #     )
-
-    # --- 7. UPDATED SYSTEM INSTRUCTION ---
+    # --- 6. SYSTEM INSTRUCTION ---
     system_instruction = (
         "You are a professional technical assistant. "
         "Review the provided context snippets. Only use the snippets that are relevant to the user's query. "
@@ -242,32 +263,20 @@ async def knowledge_query(
             messages.append(AIMessage(content=msg.content))
     messages.append(HumanMessage(content=latest_query))
 
-    # --- 8. GENERATE STRUCTURED OUTPUT ---
-    import json
-    from langchain_core.output_parsers import PydanticOutputParser
-    from langchain_core.exceptions import OutputParserException
-
+    # --- 7. GENERATE AND PARSE THE JSON ANSWER ---
     raw_response = await llm.ainvoke(messages)
 
-    parser = PydanticOutputParser(pydantic_object=RAGResponseTemplate)
-    parsed_response = None
-
     try:
-        parsed_response = parser.parse(raw_response.content)
-    except OutputParserException:
-        clean_content = raw_response.content.strip()
-        if clean_content.startswith("```json"):
-            clean_content = clean_content[7:]
-        if clean_content.endswith("```"):
-            clean_content = clean_content[:-3]
-
-        try:
-            parsed_data = json.loads(clean_content.strip())
-            parsed_response = RAGResponseTemplate(**parsed_data)
-        except Exception:
-            metadata["parse_error"] = "json_decode_failed"
-            print(f"Failed to parse LLM output. Raw content:\n{raw_response.content}")
-            raise HTTPException(status_code=status.HTTP_417_EXPECTATION_FAILED)
+        parsed_response = parse_rag_response(raw_response.content)
+    except ValueError:
+        logger.error(
+            "Failed to parse LLM output as RAG JSON. Raw content:\n%s",
+            raw_response.content,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="The generation model returned a response that could not be parsed.",
+        )
 
     usage = {}
     if hasattr(raw_response, "response_metadata"):

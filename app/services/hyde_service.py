@@ -37,5 +37,5 @@ async def generate_hypothetical_document(
         SystemMessage(content=HYDE_SYSTEM_PROMPT),
         HumanMessage(content=contextual_query),
     ]
-    response = llm.invoke(messages)
+    response = await llm.ainvoke(messages)
     return response.content.strip()

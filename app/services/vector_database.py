@@ -11,9 +11,10 @@ from langchain_community.document_loaders import (
     UnstructuredImageLoader,
     UnstructuredWordDocumentLoader,
 )
+from langchain_chroma import Chroma
 from langchain_community.retrievers import BM25Retriever
-from langchain_community.vectorstores import Chroma
 from langchain_core.documents import Document
+from langchain_core.embeddings import Embeddings
 from langchain_text_splitters import (
     HTMLHeaderTextSplitter,
     MarkdownHeaderTextSplitter,
@@ -23,6 +24,36 @@ from langchain_text_splitters import (
 from app.database import engine
 from app.settings import settings
 from external_models import get_embeddings
+
+_embeddings_lock = Lock()
+_embeddings_model: Embeddings | None = None
+
+
+def get_embedding_model() -> Embeddings:
+    """Return the configured embedding model, built once and reused across requests."""
+    global _embeddings_model
+    with _embeddings_lock:
+        if _embeddings_model is None:
+            _embeddings_model = get_embeddings(
+                **settings.services.embedding_model.model_dump()
+            )
+        return _embeddings_model
+
+
+def get_user_vectorstore(user_id: str) -> Chroma:
+    """
+    Open one user's Chroma collection.
+
+    Ingestion, deletion and querying must all go through this function so the
+    collection is created with cosine distance and relevance scores are
+    computed with the matching formula.
+    """
+    return Chroma(
+        client=engine.chroma_client,
+        collection_name=f"user-{user_id}",
+        embedding_function=get_embedding_model(),
+        collection_metadata={"hnsw:space": "cosine"},
+    )
 
 
 def html_to_plain_text(raw_html: str) -> str:
@@ -115,16 +146,7 @@ def vectors_embedding(file_path: str, document_id: str, user_id: str):
         chunk.metadata["document_id"] = str(document_id)
 
     # 3. Embed and Store
-    embedding_service = settings.services.embedding_model
-
-    embeddings_model = get_embeddings(**embedding_service.model_dump())
-
-    Chroma.from_documents(
-        client=engine.chroma_client,
-        documents=chunks,
-        embedding=embeddings_model,
-        collection_name=f"user-{user_id}",
-    )
+    get_user_vectorstore(user_id).add_documents(chunks)
 
     invalidate_bm25_retriever(user_id)
 
@@ -133,17 +155,8 @@ def delete_vectors(user_id: str, document_id: str):
     """
     Deletes vectors from a user's Chroma collection based on the document_id metadata.
     """
-    # 1. Initialize the same embedding model used for insertion
-    embeddings_model = get_embeddings(**settings.services.embedding_model.model_dump())
+    vectorstore = get_user_vectorstore(user_id)
 
-    # 2. Connect to the existing Chroma collection for this user
-    vectorstore = Chroma(
-        client=engine.chroma_client,
-        collection_name=f"user-{user_id}",
-        embedding_function=embeddings_model,
-    )
-
-    # 3. Delete documents using a metadata filter ('where' clause)
     try:
         vectorstore.delete(where={"document_id": str(document_id)})
         invalidate_bm25_retriever(user_id)
