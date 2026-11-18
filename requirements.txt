@@ -1,0 +1,19 @@
+# Direct dependencies for the API and md/html/pdf/txt ingestion.
+aiofiles
+chromadb
+fastapi
+langchain-chroma
+langchain-community
+langchain-core
+langchain-openai
+langchain-text-splitters
+lxml
+openai
+pydantic-settings
+pypdf
+PyJWT
+pwdlib[argon2]
+python-multipart
+rank-bm25
+sqlmodel
+uvicorn

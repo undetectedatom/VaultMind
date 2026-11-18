@@ -32,6 +32,22 @@ VaultMind is a technical-document RAG backend built with FastAPI. It is designed
 - JWT authentication
 - Pluggable model providers configured through `rag_config.json` and `.env`
 
+## Install
+
+From the project root, using Python 3.12:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+For Word documents and images, also install the loader extras:
+
+```bash
+python -m pip install 'unstructured[doc,image]'
+```
+
+Image OCR also needs Tesseract installed on the system. The experiment scripts additionally need `pandas`, `requests`, and `tqdm` (`python -m pip install pandas requests tqdm`).
+
 ## Configuration
 
 Runtime settings are loaded from:
